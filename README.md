@@ -9,17 +9,17 @@ This repository contains an autonomous algorithm discovery system implementing R
 ```mermaid
 graph TD
     subgraph "Decision & Logic (Python)"
-        Orchestrator[Systemtest.py<br/>(Orchestrator)]
-        Brain[Neuro-Genetic Synthesizer<br/>(H-Module)]
-        Purpose[SelfPurposeEngine<br/>(Autonomous Goals)]
+        Orchestrator["Systemtest.py<br/>(Orchestrator)"]
+        Brain["Neuro-Genetic Synthesizer<br/>(H-Module)"]
+        Purpose["SelfPurposeEngine<br/>(Autonomous Goals)"]
     end
 
     subgraph "Speed Layer (Rust)"
-        RustVM[rs_machine<br/>(Virtual Machine)]
+        RustVM["rs_machine<br/>(Virtual Machine)"]
     end
 
     subgraph "Long-Term Memory"
-        Disk[(Concept Library)]
+        Disk[("Concept Library")]
     end
 
     Purpose -->|1. Define Goal| Orchestrator
