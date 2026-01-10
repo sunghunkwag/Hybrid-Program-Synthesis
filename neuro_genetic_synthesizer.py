@@ -363,11 +363,61 @@ class NoveltyScorer:
         return rarity_sum / len(ngrams)
 
 # ==============================================================================
+# Meta-Controller (Self-Adaptive Logic)
+# ==============================================================================
+@dataclass
+class MetaParams:
+    mutation_rate: float
+    crossover_prob: float
+    population_size: int
+
+class MetaController:
+    """
+    RSI Engine: Monitors evolutionary progress and adapts hyperparameters.
+    If stagnating -> Increase exploration (Mutation).
+    If progressing -> Increase exploitation (Selection/Crossover).
+    """
+    def __init__(self):
+        self.history = []
+        self.params = MetaParams(mutation_rate=0.3, crossover_prob=0.7, population_size=200)
+        self.stagnation_counter = 0
+        self.last_best_fitness = -1.0
+        
+    def update(self, current_best_fitness: float):
+        self.history.append(current_best_fitness)
+        
+        # Stagnation Detection
+        if current_best_fitness <= self.last_best_fitness:
+            self.stagnation_counter += 1
+        else:
+            self.stagnation_counter = 0
+            self.last_best_fitness = current_best_fitness
+            
+        # Recursive Adaptation Logic
+        if self.stagnation_counter > 5:
+            # Stagnating: Turbocharge Mutation (Exploration)
+            self.params.mutation_rate = min(0.9, self.params.mutation_rate * 1.5)
+            self.params.crossover_prob = max(0.1, self.params.crossover_prob * 0.8)
+            print(f"[RSI-Meta] Stagnation detected ({self.stagnation_counter}). Increasing Mutation to {self.params.mutation_rate:.2f}")
+            
+        elif self.stagnation_counter == 0 and len(self.history) > 1:
+            # Progressing: Stabilize (Exploitation)
+            self.params.mutation_rate = max(0.1, self.params.mutation_rate * 0.9)
+            self.params.crossover_prob = min(0.9, self.params.crossover_prob * 1.1)
+            # print(f"[RSI-Meta] Progress detected. Stabilizing Mutation to {self.params.mutation_rate:.2f}")
+
+    def get_params(self) -> MetaParams:
+        return self.params
+
+# ==============================================================================
 # Neuro-Genetic Synthesizer (Island Model)
 # ==============================================================================
 class NeuroGeneticSynthesizer:
     def __init__(self, neural_guide=None, pop_size=200, generations=20, islands=3):
         self.guide = neural_guide
+        self.meta = MetaController() # Initialize RSI Meta-Controller
+        self.meta.params.population_size = pop_size # Sync initial param
+        
         self.pop_size = pop_size
         self.generations = generations
         self.num_islands = islands
@@ -425,6 +475,17 @@ class NeuroGeneticSynthesizer:
         for gen in range(self.generations):
             if deadline and time.time() > deadline: break
             
+            # --- META-CONTROLLER UPDATE ---
+            # 1. Update Meta-Controller with current best fitness
+            if best_fitness > 0:
+                self.meta.update(best_fitness)
+            
+            # 2. Retrieve Dynamic Hyperparameters
+            meta_params = self.meta.get_params()
+            current_mutation_rate = meta_params.mutation_rate
+            current_crossover_prob = meta_params.crossover_prob
+            # ------------------------------
+
             # Migration (Ring Topology)
             if gen > 0 and gen % 5 == 0:
                 for i in range(self.num_islands):
@@ -434,7 +495,7 @@ class NeuroGeneticSynthesizer:
                     # Replace worst in target
                     islands[target_i].sort(key=lambda e: self._fitness(e, io_pairs, fast=True))
                     islands[target_i] = migrants + islands[target_i][len(migrants):]
-                    print(f"  [Island] Migration {i}->{target_i} ({len(migrants)} units)")
+                    # print(f"  [Island] Migration {i}->{target_i} ({len(migrants)} units)")
 
             # Evolve each island
             for i in range(self.num_islands):
@@ -447,6 +508,8 @@ class NeuroGeneticSynthesizer:
                     scored_pop.append((final_fit, expr, raw_fit))
                     
                     if raw_fit >= 100.0:
+                        # [Library Learning Hook]
+                        # Could trigger library registration here if size is small enough
                         return [(str(expr), expr, self._size(expr), raw_fit)]
 
                 scored_pop.sort(key=lambda x: x[0], reverse=True)
@@ -461,8 +524,10 @@ class NeuroGeneticSynthesizer:
                 while len(next_gen) < island_pop_size:
                     p1 = self._tournament(scored_pop)
                     p2 = self._tournament(scored_pop)
-                    child = self._crossover(p1, p2) if self.rng.random() < 0.7 else p1
-                    if self.rng.random() < 0.3: child = self._mutate(child, op_probs)
+                    # DYNAMIC CROSSOVER PROBABILITY
+                    child = self._crossover(p1, p2) if self.rng.random() < current_crossover_prob else p1
+                    # DYNAMIC MUTATION RATE
+                    if self.rng.random() < current_mutation_rate: child = self._mutate(child, op_probs)
                     next_gen.append(child)
                 islands[i] = next_gen
 

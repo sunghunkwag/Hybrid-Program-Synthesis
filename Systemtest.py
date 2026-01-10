@@ -12156,6 +12156,12 @@ class HRMSystem:
                     level += 1
                     print(f"*** LEVEL UP: {level} ***")
                 
+                # [TRUE RSI] Display Meta-Controller Status
+                if hasattr(h_mod, 'synthesizer') and hasattr(h_mod.synthesizer, 'meta'):
+                    mp = h_mod.synthesizer.meta.get_params()
+                    stag = h_mod.synthesizer.meta.stagnation_counter
+                    print(f"[RSI-Status] MutRate={mp.mutation_rate:.2f} | CrossProb={mp.crossover_prob:.2f} | Stag={stag}")
+                
                 # [SelfPurpose] Run autonomous goal discovery EVERY CYCLE
                 if self_purpose:
                     purpose_result = self_purpose.run_cycle()
@@ -14695,9 +14701,25 @@ class HRMSidecar:
             if hasattr(self, 'meta_state') and hasattr(ast_obj, '__repr__'):
                 name = f"Op{len(self.meta_state.abstractions)}"
                 self.meta_state.add_abstraction(name, ast_obj)
-                print(f"  [HRM-Sidecar] Injected abstraction: {name}")
+                # [RSI] Register with Neuro-Genetic Synthesizer (Library Learning)
+                if hasattr(self, 'synthesizer'):
+                    # Create a callable wrapper for the AST
+                    # The interpreter needs a python function.
+                    # We can use the synthesizer's interpreter to run this AST.
+                    def make_primitive(expr_ast, interp):
+                        return lambda *args: interp.run(expr_ast, {'n': args[0] if args else 0})
+
+                    # Register as a new primitive (e.g., 'Op5')
+                    # We need to bind the current AST to the lambda
+                    # Note: We assume unary for now or needs deeper signature analysis
+                    # For safety, we skip complex signature inference and assume unary 'n' based.
+                    wrapper = make_primitive(ast_obj, self.synthesizer.interp)
+                    self.synthesizer.register_primitive(name, wrapper)
+                    print(f"  [RSI-Library] Learned new primitive '{name}' (DreamCoder-style reuse enabled)")
             
-            # [RSI] Register with Neuro-Genetic Synthesizer
+            # [Bezalel] Feedback loop
+            if hasattr(self, 'bezalel'):
+                self.bezalel.feedback(code, 1.0)
             if hasattr(self.synthesizer, 'register_primitive'):
                 try:
                     # Construct valid context with base primitives
