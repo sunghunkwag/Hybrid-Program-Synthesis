@@ -6,6 +6,7 @@ NO TRANSFORMERS. Uses simple probability distributions from the Neural Guide.
 import random
 import time
 import math
+import collections
 from dataclasses import dataclass
 from typing import List, Dict, Any, Tuple, Optional, Callable
 
@@ -165,8 +166,8 @@ class NeuroInterpreter:
         'add': lambda a, b: a + b,
         'mul': lambda a, b: a * b,
         'sub': lambda a, b: a - b,
-        'div': lambda a, b: a // b if b != 0 else 0,
-        'mod': lambda a, b: a % b if b != 0 else 0,
+        'div': lambda a, b: int(a / b) if b != 0 else 0,
+        'mod': lambda a, b: int(math.fmod(a, b)) if b != 0 else 0,
         'if_gt': lambda a, b, c, d: c if a > b else d,
     }
 
@@ -194,191 +195,163 @@ class NeuroInterpreter:
         self.PRIMS[name] = func
 
 
+
 # ==============================================================================
-# Neuro-Genetic Synthesizer
+# Novelty Detection (N-gram Rarity)
+# ==============================================================================
+class NoveltyScorer:
+    def __init__(self):
+        self.ngram_counts = collections.defaultdict(int)
+        
+    def _extract_ngrams(self, expr, n=3):
+        ops = []
+        def visit(e):
+            if isinstance(e, BSApp):
+                ops.append(e.func)
+                for a in e.args: visit(a)
+        visit(expr)
+        if len(ops) < n: return []
+        return [tuple(ops[i:i+n]) for i in range(len(ops)-n+1)]
+
+    def score(self, expr) -> float:
+        ngrams = self._extract_ngrams(expr)
+        if not ngrams: return 0.0
+        rarity_sum = 0.0
+        for ng in ngrams:
+            count = self.ngram_counts[ng]
+            rarity_sum += 1.0 / (1.0 + math.log(1 + count))
+            self.ngram_counts[ng] += 1
+        return rarity_sum / len(ngrams)
+
+# ==============================================================================
+# Neuro-Genetic Synthesizer (Island Model)
 # ==============================================================================
 class NeuroGeneticSynthesizer:
-    """
-    Combines Evolutionary Search (Genetic Algorithm) with Neural Guidance.
-    NO TRANSFORMERS. Uses simple probability distributions from the Neural Guide.
-    """
-    def __init__(self, neural_guide=None, pop_size=200, generations=20):
-        self.guide = neural_guide  # Object with get_priors(io_pairs) -> Dict[op, prob]
+    def __init__(self, neural_guide=None, pop_size=200, generations=20, islands=3):
+        self.guide = neural_guide
         self.pop_size = pop_size
         self.generations = generations
+        self.num_islands = islands
         self.interp = NeuroInterpreter()
         self.rng = random.Random()
+        self.novelty = NoveltyScorer() # Novelty detection
         
-        # [Fallback Neural Network]
-        # If no external guide (e.g. absent Torch), use internal SimpleNN
         if self.guide is None:
-            # Input: 10 sample points (flattened I/O), Hidden: 16, Output: len(ops)
             self.internal_nn = SimpleNN(input_dim=20, hidden_dim=16, output_dim=6, rng=self.rng)
-            print("[NeuroGen] Internal Pure-Python Neural Network initialized (No Torch dependency).")
+            print("[NeuroGen] Internal Pure-Python Neural Network initialized.")
         else:
             self.internal_nn = None
 
-        # Base Atoms
         self.atoms = [BSVar('n'), BSVal(0), BSVal(1), BSVal(2), BSVal(3)]
         self.ops = list(NeuroInterpreter.PRIMS.keys())
-        
-        # [L6 Actuation] Structural Bias (Controlled by MetaBrain)
-        # Multipliers for operator probabilities: {'op_name': multiplier}
         self.structural_bias = {}
 
     def register_primitive(self, name: str, func: Callable):
-        """Register a new primitive for synthesis."""
         self.interp.register_primitive(name, func)
         if name not in self.ops:
             self.ops.append(name)
-            # Resize NN output if needed (advanced feature, skipped for simple fallback)
             print(f"[NeuroGen] Registered new primitive: {name}")
 
     def synthesize(self, io_pairs: List[Dict[str, Any]], deadline=None, task_id="", task_params=None, **kwargs) -> List[Tuple[str, Expr, float, float]]:
-        start_time = time.time()
-
-        # 1. Get Neural Guidance (Priors)
-        # [DYNAMIC EXPANSION] Initialize priors for ALL registered ops (including new inventions)
+        # 1. Neural Guidance (Priors)
         priors = {op: 1.0 for op in self.ops} 
-        # Default biases for base ops if needed, but uniform is honest start.
         if 'mod' in priors: priors['mod'] = 0.5
         if 'if_gt' in priors: priors['if_gt'] = 0.1
         
         if self.guide:
             learned_priors = self.guide.get_priors(io_pairs)
-            if learned_priors:
-                priors.update(learned_priors)
+            if learned_priors: priors.update(learned_priors)
         elif self.internal_nn:
-            # [Neural Fallback]
-            # Flatten I/O pairs to feature vector for SimpleNN
-            features = []
-            for i in range(10): # Take up to 10 pairs
-                if i < len(io_pairs):
-                    val_in = io_pairs[i]['input']
-                    val_out = io_pairs[i]['output']
-                    
-                    # Handle non-numeric input (e.g. string for transform tasks)
-                    if isinstance(val_in, (int, float)):
-                        features.append(float(val_in))
-                    else:
-                        # Simple hack: length + hash for strings
-                        features.append(float(len(str(val_in))) + (hash(str(val_in)) % 100) / 100.0)
-                        
-                    if isinstance(val_out, (int, float)):
-                        features.append(float(val_out))
-                    else:
-                        features.append(float(len(str(val_out))) + (hash(str(val_out)) % 100) / 100.0)
-                else:
-                    features.append(0.0)
-                    features.append(0.0)
-            
-            # Forward pass
+            features = self._extract_features(io_pairs)
             nn_probs = self.internal_nn.forward(features)
-            
-            # Update priors mapping
             op_keys = ['add', 'mul', 'sub', 'div', 'mod', 'if_gt']
             for i, op in enumerate(op_keys):
-                if i < len(nn_probs):
-                    priors[op] = nn_probs[i] * 5.0 # Scale up
-            
-            # [Neuro-Evolution] Mutate the internal brain slightly each task?
-            # Ideally this happens on success, but for now we effectively do 'online learning' via mutation
-            # Actually, let's mutate it if we fail (in wrapper), or just random drift here.
+                if i < len(nn_probs) and op in priors: priors[op] = nn_probs[i] * 5.0
             self.internal_nn.mutate(self.rng, rate=0.01)
 
-        # [L6 Actuation] Apply Structural Bias
+        # Apply Structural Bias
         for op, bias in self.structural_bias.items():
-            if op in priors:
-                priors[op] *= bias
-            elif op == 'loop' and 'if_gt' in priors: # Map abstract 'loop' to recursive depth or equivalent
-                 pass # NeuroGenetic uses implicit recursion via tree depth, handled in _random_expr?
-            elif op == 'branch' and 'if_gt' in priors:
-                 priors['if_gt'] *= bias # Map 'branch' to if_gt
+            if op in priors: priors[op] *= bias
 
-        # Normalize priors to probabilities
         total_p = sum(priors.values())
         op_probs = {k: v/total_p for k, v in priors.items()}
 
-        # 2. Initialize Population
-        population = [self._random_expr(2, op_probs) for _ in range(self.pop_size)]
-
+        # 2. Initialize Islands
+        island_pop_size = self.pop_size // self.num_islands
+        islands = [[self._random_expr(2, op_probs) for _ in range(island_pop_size)] for _ in range(self.num_islands)]
+        
         best_solution = None
         best_fitness = -1.0
 
         for gen in range(self.generations):
             if deadline and time.time() > deadline: break
+            
+            # Migration (Ring Topology)
+            if gen > 0 and gen % 5 == 0:
+                for i in range(self.num_islands):
+                    target_i = (i + 1) % self.num_islands
+                    # Move top 5%
+                    migrants = sorted(islands[i], key=lambda e: self._fitness(e, io_pairs, fast=True), reverse=True)[:int(island_pop_size*0.05)]
+                    # Replace worst in target
+                    islands[target_i].sort(key=lambda e: self._fitness(e, io_pairs, fast=True))
+                    islands[target_i] = migrants + islands[target_i][len(migrants):]
+                    print(f"  [Island] Migration {i}->{target_i} ({len(migrants)} units)")
 
-            # Evaluate Fitness
-            scored_pop = []
-            for expr in population:
-                fit = self._fitness(expr, io_pairs)
-                scored_pop.append((fit, expr))
+            # Evolve each island
+            for i in range(self.num_islands):
+                scored_pop = []
+                for expr in islands[i]:
+                    raw_fit = self._fitness(expr, io_pairs)
+                    nov_score = self.novelty.score(expr)
+                    final_fit = raw_fit + (nov_score * 5.0) # Bonus for novelty
+                    
+                    scored_pop.append((final_fit, expr, raw_fit))
+                    
+                    if raw_fit >= 100.0:
+                        return [(str(expr), expr, self._size(expr), raw_fit)]
 
-                if fit >= 100.0:
-                    # Early Exit on Solution
-                    # [Neuro Reinforcement] If internal NN exists, reinforcement learning could happen here
-                    # For simple fallback, we skip backprop
-                    return [(str(expr), expr, self._size(expr), fit)]
+                scored_pop.sort(key=lambda x: x[0], reverse=True)
+                
+                # Global Best Tracking
+                if scored_pop[0][2] > best_fitness:
+                    best_fitness = scored_pop[0][2]
+                    best_solution = (scored_pop[0][0], scored_pop[0][1], scored_pop[0][2])
 
-            # Sort by fitness
-            scored_pop.sort(key=lambda x: x[0], reverse=True)
-            current_best = scored_pop[0]
+                # Selection
+                next_gen = [p[1] for p in scored_pop[:5]] # Elitism
+                while len(next_gen) < island_pop_size:
+                    p1 = self._tournament(scored_pop)
+                    p2 = self._tournament(scored_pop)
+                    child = self._crossover(p1, p2) if self.rng.random() < 0.7 else p1
+                    if self.rng.random() < 0.3: child = self._mutate(child, op_probs)
+                    next_gen.append(child)
+                islands[i] = next_gen
 
-            if current_best[0] > best_fitness:
-                best_fitness = current_best[0]
-                best_solution = current_best
-
-            # Selection (Elitism + Tournament)
-            next_gen = [p[1] for p in scored_pop[:10]] # Elitism
-
-            while len(next_gen) < self.pop_size:
-                parent1 = self._tournament(scored_pop)
-                parent2 = self._tournament(scored_pop)
-
-                if self.rng.random() < 0.7:
-                    child = self._crossover(parent1, parent2)
-                else:
-                    child = parent1
-
-                if self.rng.random() < 0.3:
-                    child = self._mutate(child, op_probs)
-
-                next_gen.append(child)
-
-            population = next_gen
-
-        if best_solution and self.internal_nn:
-            # Verbose log for debugging learning
+        if best_solution:
             print(f"[NeuroGen] Best fitness: {best_fitness:.2f}")
+            return [(str(best_solution[1]), best_solution[1], self._size(best_solution[1]), best_fitness)]
+        return []
 
-            if best_fitness >= 99.0:
-                # [REAL LEARNING]
-                # If we found a perfect solution, train the neural network to prefer these operators.
-                # This is Reinforcement Learning (Policy Gradient-ish) via Backprop.
-                print(f"[NeuroGen] Learning from logic: {best_solution[1]}")
-            
-            # Count operator usage in the solution
-            op_counts = {'add':0, 'mul':0, 'sub':0, 'div':0, 'mod':0, 'if_gt':0}
-            def visit(e):
-                if isinstance(e, BSApp):
-                    if e.func in op_counts: op_counts[e.func] += 1
-                    for a in e.args: visit(a)
-            visit(best_solution[1])
-            
-            # Find dominant operator (most used)
-            # Simple strategy: Train towards the most frequent operator
-            best_op = max(op_counts, key=op_counts.get)
-            if op_counts[best_op] > 0:
-                op_keys = ['add', 'mul', 'sub', 'div', 'mod', 'if_gt']
-                try:
-                    target_idx = op_keys.index(best_op)
-                    # Train multiple steps to reinforce
-                    for _ in range(5):
-                        self.internal_nn.train(target_idx)
-                    print(f"[NeuroGen] Brain updated! Reinforced '{best_op}' for this pattern.")
-                except ValueError: pass
+    def _extract_features(self, io_pairs):
+        features = []
+        for i in range(10):
+            if i < len(io_pairs):
+                val_in, val_out = io_pairs[i]['input'], io_pairs[i]['output']
+                features.append(float(val_in) if isinstance(val_in, (int, float)) else 0.0)
+                features.append(float(val_out) if isinstance(val_out, (int, float)) else 0.0)
+            else: features.extend([0.0, 0.0])
+        return features
 
-        return [(str(best_solution[1]), best_solution[1], self._size(best_solution[1]), best_fitness)] if best_solution else []
+    def _fitness(self, expr, ios, fast=False):
+        score = 0
+        for io in ios:
+            out = self.interp.run(expr, { 'n': io['input'] })
+            if out == io['output']: score += 1
+            else:
+                 if not fast and isinstance(out, (int, float)) and isinstance(io['output'], (int, float)):
+                     diff = abs(out - io['output'])
+                     if diff < 100: score += 1.0 / (1.0 + diff)
+        return (score / len(ios)) * 100.0
 
     def _random_expr(self, depth, op_probs):
         if depth <= 0 or self.rng.random() < 0.3:
@@ -392,22 +365,7 @@ class NeuroGeneticSynthesizer:
         args = tuple(self._random_expr(depth-1, op_probs) for _ in range(arity))
         return BSApp(op, args)
 
-    def _fitness(self, expr, ios):
-        score = 0
-        hits = 0
-        for io in ios:
-            out = self.interp.run(expr, { 'n': io['input'] })
-            if out == io['output']:
-                hits += 1
-                score += 1
-            else:
-                # Distance-based partial credit?
-                if isinstance(out, (int, float)) and isinstance(io['output'], (int, float)):
-                   diff = abs(out - io['output'])
-                   if diff < 100: score += 1.0 / (1.0 + diff)
 
-        # Normalize to 0-100
-        return (score / len(ios)) * 100.0
 
     def _tournament(self, scored_pop):
         # Pick k random, return best

@@ -14775,28 +14775,45 @@ class CognitiveCore:
 
 
 class AutonomousTaskGenerator:
-    """Generates increasingly complex tasks autonomously."""
-    TEMPLATES = [
-        ("identity", lambda n: n), ("double", lambda n: n * 2), ("square", lambda n: n * n),
-        ("triangular", lambda n: n * (n + 1) // 2),
-    ]
+    """Generates increasingly complex tasks based on strict curriculum."""
+    LEVELS = {
+        1: [("identity", lambda n: n), ("increment", lambda n: n+1), ("decrement", lambda n: n-1 if n>0 else 0)],
+        2: [("add_k", lambda n: n+2), ("sub_k", lambda n: n-2 if n>1 else 0), ("double", lambda n: n * 2)],
+        3: [("mul_k", lambda n: n*3), ("square", lambda n: n * n), ("modulo_k", lambda n: n % 3)],
+        4: [("triangular", lambda n: n * (n + 1) // 2), ("cube", lambda n: n*n*n)],
+    }
     
     def __init__(self, seed=42):
         self.rng = random.Random(seed)
-        self.solved = set()
-        self.complexity = 1
+        self.solved_counts = {1:0, 2:0, 3:0, 4:0}
+        self.current_level = 1
         self.gen = 0
     
     def generate(self):
         self.gen += 1
-        avail = self.TEMPLATES[:min(self.complexity + 2, len(self.TEMPLATES))]
-        name, fn = self.rng.choice(avail)
+        # Gating logic
+        if self.current_level == 1 and self.solved_counts[1] >= 5: self.current_level = 2
+        elif self.current_level == 2 and self.solved_counts[2] >= 5: self.current_level = 3
+        elif self.current_level == 3 and self.solved_counts[3] >= 5: self.current_level = 4
+        
+        # Fallback if level undefined
+        pool = self.LEVELS.get(self.current_level, self.LEVELS[1])
+        name, fn = self.rng.choice(pool)
+        
         ios = [{"input": n, "output": fn(n)} for n in range(7)]
-        return f"{name}_g{self.gen}", ios
+        return f"{name}_L{self.current_level}_g{self.gen}", ios
     
     def report_solved(self, name):
-        self.solved.add(name)
-        if len(self.solved) % 3 == 0: self.complexity = min(self.complexity + 1, len(self.TEMPLATES))
+        # Extract level from name format "name_LX_gY"
+        try:
+            parts = name.split('_')
+            for p in parts:
+                if p.startswith('L') and p[1:].isdigit():
+                    lvl = int(p[1:])
+                    self.solved_counts[lvl] = self.solved_counts.get(lvl, 0) + 1
+                    print(f"[Curriculum] Level {lvl} progress: {self.solved_counts[lvl]}/5")
+                    break
+        except: pass
 
 
 class SingularityMonitor:
