@@ -1,4 +1,4 @@
-# HybridProgramSynthesis
+# Hybrid-Program-Synthesis
 **A Neuro-Symbolic Architecture for Recursive Self-Improvement (RSI)**
 
 > **Research Test Version**: v0.1.0-alpha
