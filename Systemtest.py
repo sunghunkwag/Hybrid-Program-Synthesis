@@ -3870,6 +3870,92 @@ class InventionSelfModifier:
 
         self.representation.add_production("control", new_control)
 
+    # =========================================================================
+    # PERSISTENT RSI: Save and Load Self-Modification State
+    # =========================================================================
+    RSI_STATE_PATH = "rsi_modifier_state.json"
+    
+    def save_state(self, path: str = None) -> None:
+        """Save all self-modification state to disk for persistence across restarts."""
+        if path is None:
+            path = self.RSI_STATE_PATH
+        
+        state = {
+            "version": "1.0",
+            "timestamp": time.time(),
+            # Evaluator state
+            "evaluator": {
+                "novelty_weight": getattr(self.evaluator, 'novelty_weight', 0.5),
+            },
+            # Reward model state
+            "reward_model": {
+                "transfer_weight": getattr(self.reward_model, 'transfer_weight', 0.5),
+                "reuse_weight": getattr(self.reward_model, 'reuse_weight', 0.3),
+            },
+            # Searcher weights
+            "searcher_weights": getattr(self.searchers, 'weights', {}),
+            # Learned library (functions discovered)
+            "library": list(self.representation.library) if hasattr(self.representation, 'library') else [],
+            # Budget policy state
+            "budget_levels": [
+                {"task_count": level.task_count} 
+                for level in self.budget_policy.levels
+            ] if hasattr(self.budget_policy, 'levels') else [],
+        }
+        
+        try:
+            with open(path, 'w') as f:
+                json.dump(state, f, indent=2)
+            print(f"[RSI-Persist] State saved to {path} ({len(state['library'])} library items)")
+        except Exception as e:
+            print(f"[RSI-Persist] Failed to save state: {e}")
+    
+    def load_state(self, path: str = None) -> bool:
+        """Load self-modification state from disk. Returns True if successful."""
+        if path is None:
+            path = self.RSI_STATE_PATH
+            
+        if not os.path.exists(path):
+            print(f"[RSI-Persist] No saved state found at {path}")
+            return False
+        
+        try:
+            with open(path, 'r') as f:
+                state = json.load(f)
+            
+            # Restore evaluator state
+            if 'evaluator' in state:
+                self.evaluator.novelty_weight = state['evaluator'].get('novelty_weight', 0.5)
+            
+            # Restore reward model state
+            if 'reward_model' in state:
+                self.reward_model.transfer_weight = state['reward_model'].get('transfer_weight', 0.5)
+                self.reward_model.reuse_weight = state['reward_model'].get('reuse_weight', 0.3)
+            
+            # Restore searcher weights
+            if 'searcher_weights' in state and hasattr(self.searchers, 'weights'):
+                self.searchers.weights.update(state['searcher_weights'])
+            
+            # Restore library
+            if 'library' in state and hasattr(self.representation, 'library'):
+                for item in state['library']:
+                    if item not in self.representation.library:
+                        self.representation.library.append(item)
+            
+            # Restore budget levels
+            if 'budget_levels' in state and hasattr(self.budget_policy, 'levels'):
+                for i, level_state in enumerate(state['budget_levels']):
+                    if i < len(self.budget_policy.levels):
+                        self.budget_policy.levels[i].task_count = level_state.get('task_count', 3)
+            
+            print(f"[RSI-Persist] State loaded from {path} (version {state.get('version', 'unknown')})")
+            print(f"[RSI-Persist] Restored: {len(state.get('library', []))} library items")
+            return True
+            
+        except Exception as e:
+            print(f"[RSI-Persist] Failed to load state: {e}")
+            return False
+
 
 class NeuroGeneticSearcher(Searcher):
     name = "neuro_genetic"
@@ -3961,6 +4047,9 @@ class InventionMetaController:
             self.budget_policy,
         )
         self.candidate_history: List[InventionProgramCandidate] = []
+        
+        # [PERSISTENT RSI] Load previous state on startup
+        self.self_modifier.load_state()
 
     def run(self, iterations: int = 5) -> None:
         for _ in range(iterations):
@@ -3977,6 +4066,9 @@ class InventionMetaController:
             for candidate in survivors:
                 self._retain(candidate)
                 self.self_modifier.adapt(candidate)
+                
+        # [PERSISTENT RSI] Save state after each run batch
+        self.self_modifier.save_state()
 
     def set_goal(self, problem: Any):
         """
@@ -12322,6 +12414,10 @@ class HRMSystem:
                         
         except KeyboardInterrupt:
             print("HRM Stopped.")
+            # [PERSISTENT RSI] Save state on shutdown
+            if hasattr(l_mod, 'controller') and hasattr(l_mod.controller, 'self_modifier'):
+                l_mod.controller.self_modifier.save_state()
+                print("[RSI-Persist] Final state saved on shutdown.")
 
 
 def run_hrm_life_v2():
