@@ -1171,6 +1171,76 @@ class NeuroGeneticSynthesizer:
             'first': 1, 'second': 1, 'index': 2, 'if_eq': 4
         }
         self.structural_bias = {}
+        
+        # [COMPOUNDING RSI] Load library functions as primitives
+        self._load_library_as_primitives()
+    
+    # ==========================================================================
+    # COMPOUNDING RSI: Load Learned Library as Primitives
+    # ==========================================================================
+    RSI_LIBRARY_PATH = "rsi_modifier_state.json"
+    
+    def _load_library_as_primitives(self):
+        """Load saved library functions and register them as usable primitives.
+        This enables compounding improvement: past discoveries accelerate future search."""
+        if not os.path.exists(self.RSI_LIBRARY_PATH):
+            return
+        
+        try:
+            with open(self.RSI_LIBRARY_PATH, 'r') as f:
+                state = json.load(f)
+            
+            library = state.get('library', [])
+            loaded_count = 0
+            
+            for code_str in library:
+                # Extract function name from code
+                import re
+                match = re.search(r'def\s+(\w+)\s*\(', code_str)
+                if not match:
+                    continue
+                    
+                fn_name = match.group(1)
+                
+                # Skip if already registered
+                if fn_name in self.ops or fn_name in NeuroInterpreter.PRIMS:
+                    continue
+                
+                # Try to compile and register the function
+                try:
+                    local_ns = {}
+                    # Provide safe execution context
+                    safe_globals = {
+                        'n': 0, 'len': len, 'reverse': lambda x: x[::-1] if hasattr(x, '__getitem__') else x,
+                        'add': lambda a, b: a + b, 'sub': lambda a, b: a - b,
+                        'mul': lambda a, b: a * b, 'div': lambda a, b: a // b if b != 0 else 0,
+                    }
+                    exec(code_str, safe_globals, local_ns)
+                    
+                    if fn_name in local_ns and callable(local_ns[fn_name]):
+                        # Register as primitive
+                        NeuroInterpreter.PRIMS[fn_name] = local_ns[fn_name]
+                        self.ops.append(fn_name)
+                        
+                        # Determine arity from function signature
+                        import inspect
+                        try:
+                            sig = inspect.signature(local_ns[fn_name])
+                            arity = len(sig.parameters)
+                            self.op_arities[fn_name] = arity
+                        except:
+                            self.op_arities[fn_name] = 1  # Default arity
+                        
+                        loaded_count += 1
+                except Exception:
+                    pass  # Skip invalid functions silently
+            
+            if loaded_count > 0:
+                print(f"[RSI-Compound] Loaded {loaded_count} library functions as search primitives")
+                
+        except Exception as e:
+            print(f"[RSI-Compound] Failed to load library: {e}")
+
     
     # ==========================================================================
     # PERSISTENCE: Save / Load Checkpoint
