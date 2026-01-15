@@ -3907,8 +3907,13 @@ class InventionSelfModifier:
             with open(path, 'w') as f:
                 json.dump(state, f, indent=2)
             print(f"[RSI-Persist] State saved to {path} ({len(state['library'])} library items)")
+            
+            # [TRUE RSI] Also inject learned operators to source code
+            self.inject_learned_operators_to_source()
+            
         except Exception as e:
             print(f"[RSI-Persist] Failed to save state: {e}")
+
     
     def load_state(self, path: str = None) -> bool:
         """Load self-modification state from disk. Returns True if successful."""
@@ -3955,6 +3960,98 @@ class InventionSelfModifier:
         except Exception as e:
             print(f"[RSI-Persist] Failed to load state: {e}")
             return False
+
+    # =========================================================================
+    # TRUE CODE SELF-MODIFICATION: Write Learned Operators to Source
+    # =========================================================================
+    SYNTHESIZER_PATH = "neuro_genetic_synthesizer.py"
+    CODE_INJECTION_MARKER = "# [RSI-INJECTED-OPERATORS]"
+    
+    def inject_learned_operators_to_source(self):
+        """TRUE RSI: Write learned operators directly to source code.
+        This modifies neuro_genetic_synthesizer.py so improvements persist in code."""
+        if not os.path.exists(self.SYNTHESIZER_PATH):
+            print(f"[RSI-CodeMod] Source file not found: {self.SYNTHESIZER_PATH}")
+            return False
+        
+        # Get top performing library functions to inject
+        library = list(self.representation.library) if hasattr(self.representation, 'library') else []
+        if not library:
+            return False
+        
+        # Filter to only valid function definitions
+        import re
+        valid_funcs = []
+        seen_names = set()
+        for code in library:
+            if code.startswith("def "):
+                # Extract function name
+                match = re.search(r'def\s+(\w+)\s*\([^)]*\):', code)
+                if match:
+                    fn_name = match.group(1)
+                    # Avoid duplicates
+                    if fn_name not in seen_names:
+                        seen_names.add(fn_name)
+                        # Rename to rsi_learned_N to avoid conflicts
+                        new_name = f"rsi_learned_{len(valid_funcs)}"
+                        renamed_code = re.sub(r'def\s+\w+\s*\(', f'def {new_name}(', code)
+                        valid_funcs.append(renamed_code)
+        
+        if not valid_funcs:
+            return False
+
+        
+        # Limit to top 10 learned functions
+        funcs_to_inject = valid_funcs[:10]
+        
+        try:
+            # Read current source
+            with open(self.SYNTHESIZER_PATH, 'r', encoding='utf-8') as f:
+                source = f.read()
+            
+            # Check if injection marker already exists
+            if self.CODE_INJECTION_MARKER in source:
+                # Remove old injected code
+                parts = source.split(self.CODE_INJECTION_MARKER)
+                if len(parts) >= 3:
+                    source = parts[0] + self.CODE_INJECTION_MARKER + "\n" + parts[2]
+            
+            # Generate injection code block
+            injection_block = f'''
+{self.CODE_INJECTION_MARKER}
+# Auto-generated from RSI learning - DO NOT EDIT MANUALLY
+# Timestamp: {time.time()}
+# These operators were discovered through recursive self-improvement
+
+'''
+            for func_code in funcs_to_inject:
+                # Clean up the function for injection
+                clean_func = func_code.strip().replace("\\n", "\n")
+                injection_block += clean_func + "\n\n"
+            
+            injection_block += f"{self.CODE_INJECTION_MARKER}\n"
+            
+            # Find insertion point (after imports, before first class)
+            insert_pos = source.find("class RustCompiler:")
+            if insert_pos == -1:
+                insert_pos = source.find("class ")
+            
+            if insert_pos > 0:
+                # Insert code
+                new_source = source[:insert_pos] + injection_block + source[insert_pos:]
+                
+                # Write back to file
+                with open(self.SYNTHESIZER_PATH, 'w', encoding='utf-8') as f:
+                    f.write(new_source)
+                
+                print(f"[RSI-CodeMod] INJECTED {len(funcs_to_inject)} learned operators to {self.SYNTHESIZER_PATH}")
+                return True
+            
+        except Exception as e:
+            print(f"[RSI-CodeMod] Failed to modify source: {e}")
+            return False
+        
+        return False
 
 
 class NeuroGeneticSearcher(Searcher):

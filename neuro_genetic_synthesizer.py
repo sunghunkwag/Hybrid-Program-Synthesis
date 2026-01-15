@@ -38,6 +38,46 @@ except ImportError:
     HAS_RUST_VM = False
     print("[NeuroGen] [INFO] Rust VM not found. Running in slow Python mode.")
 
+
+# [RSI-INJECTED-OPERATORS]
+
+
+# [RSI-INJECTED-OPERATORS]
+# Auto-generated from RSI learning - DO NOT EDIT MANUALLY
+# Timestamp: 1768479872.424668
+# These operators were discovered through recursive self-improvement
+
+def concept_1(var_0, var_1):
+    return var_0(var_1)
+
+def concept_2(var_0, var_1):
+    return var_0(var_1)
+
+def concept_3(var_0, var_1):
+    return var_0(var_1)
+
+def concept_4(var_0, var_1):
+    return var_0(var_1)
+
+def concept_5(var_0, var_1, var_2):
+    return var_0(var_1, var_2)
+
+def concept_6(var_0, var_1, var_2, var_3):
+    return var_0(var_1(var_2), var_3)
+
+def concept_7(var_0, var_1):
+    return var_0(var_1)
+
+def concept_8(var_0, var_1, var_2, var_3):
+    return var_0(var_1(var_2, var_3))
+
+def concept_9(var_0, var_1):
+    return var_0(var_1(n))
+
+def concept_10(var_0, var_1, var_2):
+    return var_0(var_1(var_2))
+
+# [RSI-INJECTED-OPERATORS]
 class RustCompiler:
     """JIT Compiler from BSExpr (Tree) to rs_machine.Instruction (Linear)."""
     def __init__(self):
