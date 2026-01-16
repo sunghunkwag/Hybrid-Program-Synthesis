@@ -44,22 +44,22 @@
   "concept_18": {
     "code": "reverse(first(reverse(n)))",
     "level": 1,
-    "usage": 3,
-    "weight": 6.050000000000001,
+    "usage": 4,
+    "weight": 6.655000000000001,
     "hash": "d626de20f6272a1c9afcc0f35c6eedc825cde6b232ee7433ffc745252a3fced0"
   },
   "concept_19": {
     "code": "reverse(reverse(reverse(n)))",
     "level": 1,
-    "usage": 1,
-    "weight": 5.0,
+    "usage": 3,
+    "weight": 6.050000000000001,
     "hash": "27b1a57ebbd13e9268813e17bb8e9fbad218339e26bcf0b5f5c3bf92350b009b"
   },
   "concept_20": {
     "code": "len(mul(len(n), or_op(n, n)))",
     "level": 1,
-    "usage": 3,
-    "weight": 6.050000000000001,
+    "usage": 4,
+    "weight": 6.655000000000001,
     "hash": "6d4325edab049ee6e497430d73b112afad6c0867241094e98cd6b838383c5442"
   },
   "concept_21": {
@@ -72,22 +72,22 @@
   "concept_22": {
     "code": "not_op(reverse(concept_18(concept_18(n, n), reverse(n))))",
     "level": 2,
-    "usage": 4,
-    "weight": 6.655000000000001,
+    "usage": 5,
+    "weight": 7.320500000000002,
     "hash": "5af31992eade40c83429545a8e0e042c67373b8e3d69b4d2f2442b7c990e6ce6"
   },
   "concept_23": {
     "code": "or_op(reverse(n), reverse(n))",
     "level": 1,
-    "usage": 2,
-    "weight": 5.5,
+    "usage": 3,
+    "weight": 6.050000000000001,
     "hash": "9b4f94bf971aeea1aaed3ab8be92d563abfe6781ee60b1d5aba2381f6bf6138a"
   },
   "concept_24": {
     "code": "not_op(concept_13(reverse(n), first(n)))",
     "level": 2,
-    "usage": 1,
-    "weight": 5.0,
+    "usage": 2,
+    "weight": 5.5,
     "hash": "cb26ee0fdcb9cbee187cd22fd0fd196ef8a079427331fc1da3ed70e198bce5b9"
   },
   "concept_25": {
@@ -121,8 +121,8 @@
   "concept_29": {
     "code": "not_op(first(first(n)))",
     "level": 1,
-    "usage": 4,
-    "weight": 6.655000000000001,
+    "usage": 5,
+    "weight": 7.320500000000002,
     "hash": "d73962a2205b4603f55949d13b9fba529ea7c566eda7070c81abbad98c59dafe"
   },
   "concept_30": {
@@ -149,8 +149,8 @@
   "concept_33": {
     "code": "not_op(concept_13(reverse(n)))",
     "level": 2,
-    "usage": 1,
-    "weight": 5.0,
+    "usage": 2,
+    "weight": 5.5,
     "hash": "704203aeb51e135c3062d64080b1d0494866a2a6530ebc1fd6b593eb0e62f595"
   },
   "concept_34": {
@@ -198,8 +198,8 @@
   "concept_40": {
     "code": "not_op(concept_31(len(n), n))",
     "level": 4,
-    "usage": 1,
-    "weight": 5.0,
+    "usage": 3,
+    "weight": 6.050000000000001,
     "hash": "b3331643e2440899c572427d7935d5ac888de859d488664b065060393ef30d75"
   },
   "concept_41": {
@@ -226,15 +226,15 @@
   "concept_44": {
     "code": "not_op(concept_22(n, len(n)))",
     "level": 3,
-    "usage": 1,
-    "weight": 5.0,
+    "usage": 2,
+    "weight": 5.5,
     "hash": "29e2c7521e2499672946cc6931447939a27d9e1fcacf49f58364145f93ab0a07"
   },
   "concept_45": {
     "code": "not_op(concept_20(n, n))",
     "level": 2,
-    "usage": 2,
-    "weight": 5.5,
+    "usage": 3,
+    "weight": 6.050000000000001,
     "hash": "e924d4fe75c405bcdbe9c622a5629df73211c6da481f6a029a8b26ed3e663beb"
   },
   "concept_46": {
@@ -261,36 +261,36 @@
   "concept_49": {
     "code": "not_op(concept_13(concept_16(n, n), concept_25(n, n)))",
     "level": 4,
-    "usage": 1,
-    "weight": 5.0,
+    "usage": 2,
+    "weight": 5.5,
     "hash": "5a623b509e407d94d304ad1e1a89ba624a0106335bbcfba16a3625f9af63b6bc"
   },
   "concept_50": {
     "code": "not_op(concept_45(concept_29(concept_48(n, n), n), n))",
     "level": 5,
-    "usage": 1,
-    "weight": 5.0,
+    "usage": 3,
+    "weight": 6.050000000000001,
     "hash": "0c0ec63d8a52f180b1faef9bb222b74c512eb43759a1a74882282c465bef06c9"
   },
   "concept_51": {
     "code": "not_op(concept_15(n, n))",
     "level": 2,
-    "usage": 1,
-    "weight": 5.0,
+    "usage": 2,
+    "weight": 5.5,
     "hash": "6c3b58fa9a203e0fb4cac32ce844cc1c010e1031a5048e6390824a33a2f09ab1"
   },
   "concept_52": {
     "code": "not_op(concept_22(n, n))",
     "level": 3,
-    "usage": 3,
-    "weight": 6.050000000000001,
+    "usage": 4,
+    "weight": 6.655000000000001,
     "hash": "63a441ecf13be205a1366b18c85dfccf136e652534b86bed49d355f7123431f5"
   },
   "concept_53": {
     "code": "eq(concept_39(n, n), concept_16(n, concept_52(n, n)))",
     "level": 4,
-    "usage": 1,
-    "weight": 5.0,
+    "usage": 4,
+    "weight": 6.655000000000001,
     "hash": "2d6e5d51aae97ba544e1f02ed1e1d6f59f19103a973c701a9cde943a1039228f"
   },
   "concept_54": {
@@ -299,5 +299,82 @@
     "usage": 1,
     "weight": 5.0,
     "hash": "19c0a8143d7fa8b987401a6ae320917f4f8fa6ddd7cdac523ab6b7055d1ff854"
+  },
+  "concept_55": {
+    "code": "not_op(concept_51(n, n))",
+    "level": 3,
+    "usage": 1,
+    "weight": 5.0,
+    "hash": "ced384e902fdc487e15ada2b8e8002ed2dc3445a6bfb2ecab41db7581de5d058"
+  },
+  "concept_56": {
+    "code": "not_op(concept_24(n, concept_29(n, n)))",
+    "level": 3,
+    "usage": 2,
+    "weight": 5.5,
+    "hash": "409a4debc961f2229975b65720608877527045bd8369cd98b1699ee21aab5229"
+  },
+  "concept_57": {
+    "code": "not_op(concept_40(n, concept_44(concept_49(n, n), concept_19(n, n))))",
+    "level": 5,
+    "usage": 2,
+    "weight": 5.5,
+    "hash": "f3ce410665d71551ad9318f30e90fdd07c0d4093dae58b1a3db03618da7e4325"
+  },
+  "concept_58": {
+    "code": "not_op(concept_57(concept_23(n, n), concept_50(n, n)))",
+    "level": 6,
+    "usage": 1,
+    "weight": 5.0,
+    "hash": "193d25495b1e683b2df5fc49ecdae686bc097d7b19cf22d707eb35b885e2ccb6"
+  },
+  "concept_59": {
+    "code": "not_op(concept_45(n, n))",
+    "level": 3,
+    "usage": 1,
+    "weight": 5.0,
+    "hash": "1db6ca4dbab93a929b786e6627b7e361d1c444371b60f7005fdc5cb7c625b029"
+  },
+  "concept_60": {
+    "code": "not_op(concept_53(n, n))",
+    "level": 5,
+    "usage": 1,
+    "weight": 5.0,
+    "hash": "f82d57c6d0e68cd795f62b57cba9225142c1919dabd503806d1da9c076aa0fed"
+  },
+  "concept_61": {
+    "code": "not_op(concept_40(n, concept_50(n, n)))",
+    "level": 6,
+    "usage": 1,
+    "weight": 5.0,
+    "hash": "23fe9d8d9c045051c42811a3f100baa499147c30c9e007ae4757a174ac11af36"
+  },
+  "concept_62": {
+    "code": "eq(concept_19(n, concept_33(n, n)), concept_18(reverse(n), n))",
+    "level": 3,
+    "usage": 1,
+    "weight": 5.0,
+    "hash": "61e01cce6cb0d0f01e1888111f607ccbb19af36de4d2da5dc512a2465c34ddf3"
+  },
+  "concept_63": {
+    "code": "not_op(concept_53(concept_22(n, n), n))",
+    "level": 5,
+    "usage": 1,
+    "weight": 5.0,
+    "hash": "6fd35cc5b85529c7f34efd9c6e7b73449c65433c726cc0cdac7a35e4431a906b"
+  },
+  "concept_108": {
+    "code": "is_empty(concept_53(n, n))",
+    "level": 5,
+    "usage": 1,
+    "weight": 5.0,
+    "hash": "bc7b82745663e69cad3360f5ae9b6780a5fac0cf4c6831ada112aeba86a24296"
+  },
+  "concept_109": {
+    "code": "eq(concept_52(concept_56(n, n), n), concept_20(n, n))",
+    "level": 4,
+    "usage": 1,
+    "weight": 5.0,
+    "hash": "e7ef8d0920ed45bc381c0def2fcf724d0913a7af1b9f0cd031fc162a13c9b273"
   }
 }

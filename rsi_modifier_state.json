@@ -1,0 +1,31 @@
+{
+  "version": "1.0",
+  "timestamp": 1768548580.4724183,
+  "evaluator": {
+    "novelty_weight": 1.5
+  },
+  "reward_model": {
+    "transfer_weight": 1.2,
+    "reuse_weight": 1.0
+  },
+  "searcher_weights": {
+    "neuro_genetic": 1.0
+  },
+  "library": [
+    "def solution(x):\n    return None"
+  ],
+  "budget_levels": [
+    {
+      "task_count": 2
+    },
+    {
+      "task_count": 3
+    },
+    {
+      "task_count": 4
+    },
+    {
+      "task_count": 5
+    }
+  ]
+}

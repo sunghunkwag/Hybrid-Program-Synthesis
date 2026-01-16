@@ -15521,16 +15521,15 @@ class HRMSidecar:
             self.transfer_engine = ConceptTransferEngine(interpreter=self.synthesizer.interpreter)
             print("[HRM] ConceptTransferEngine initialized for human-level generalization.")
 
-    def recursive_synthesize(self, io_pairs: List[Dict[str, Any]], max_attempts: int = 500) -> Optional[Tuple[str, Any]]:
+    def recursive_synthesize(self, io_pairs: List[Dict[str, Any]], max_size: int = 5) -> Optional[Tuple[str, Any]]:
         """
-        Synthesize recursive programs using BSRecCall enumeration.
-        Targets: fibonacci, factorial, sum_to_n
+        Synthesize recursive programs using BOTTOM-UP ENUMERATION.
         
-        Uses run_recursive_fib for dual base case patterns (fibonacci).
-        Uses run_recursive for single base case patterns (factorial, sum_to_n).
+        This is the proper approach from 90s program synthesis research:
+        - Generate all expressions of size 1, then size 2, etc.
+        - Test each against I/O pairs
+        - Return the first one that works (smallest program)
         """
-        rng = random.Random()
-        
         if not io_pairs:
             return None
         
@@ -15538,44 +15537,65 @@ class HRMSidecar:
         if not all(isinstance(p.get('input'), (int, float)) for p in io_pairs):
             return None
         
-        # Detect Fibonacci pattern: check if we have f(0), f(1), and f(n) = f(n-1) + f(n-2) fits
+        # Detect Fibonacci pattern for dual base case
         is_fibonacci_pattern = self._detect_fibonacci_pattern(io_pairs)
         
-        print(f"  > [RecursiveSynthesizer] Attempting recursive enumeration ({max_attempts} attempts)...")
+        print(f"  > [RecursiveSynthesizer] Bottom-up enumeration (max_size={max_size})...")
         if is_fibonacci_pattern:
             print(f"  > [RecursiveSynthesizer] Detected FIBONACCI pattern! Using dual base case.")
         
-        # 1. TRY KNOWN PATTERNS FIRST (targeted search)
-        known_patterns = [
-            # Fibonacci: f(n) = f(n-1) + f(n-2)
-            BSBinOp('+', BSRecCall(BSBinOp('-', BSVar('n'), BSVal(1))), 
-                        BSRecCall(BSBinOp('-', BSVar('n'), BSVal(2)))),
-            # Sum to n: f(n) = n + f(n-1)
-            BSBinOp('+', BSVar('n'), BSRecCall(BSBinOp('-', BSVar('n'), BSVal(1)))),
-            # Factorial: f(n) = n * f(n-1)
-            BSBinOp('*', BSVar('n'), BSRecCall(BSBinOp('-', BSVar('n'), BSVal(1)))),
-            # Double: f(n) = f(n-1) + f(n-1) or 2*f(n-1)
-            BSBinOp('+', BSRecCall(BSBinOp('-', BSVar('n'), BSVal(1))),
-                        BSRecCall(BSBinOp('-', BSVar('n'), BSVal(1)))),
-        ]
-        
-        for program in known_patterns:
-            if self._test_program(program, io_pairs, is_fibonacci_pattern):
-                code_str = str(program)
-                print(f"  > [RecursiveSynthesizer] SUCCESS (known pattern)! Found: {code_str}")
-                return (code_str, program)
-        
-        # 2. RANDOM ENUMERATION
-        for attempt in range(max_attempts):
-            depth = rng.randint(2, 4)
-            program = self._generate_recursive_program(rng, depth)
-            
-            if self._test_program(program, io_pairs, is_fibonacci_pattern):
-                code_str = str(program)
-                print(f"  > [RecursiveSynthesizer] SUCCESS (enumeration)! Found: {code_str}")
-                return (code_str, program)
+        # BOTTOM-UP ENUMERATION
+        # Generate all expressions by size and test each
+        for size in range(1, max_size + 1):
+            expressions = self._enumerate_expressions(size)
+            for program in expressions:
+                if self._test_program(program, io_pairs, is_fibonacci_pattern):
+                    code_str = str(program)
+                    print(f"  > [RecursiveSynthesizer] SUCCESS (size={size})! Found: {code_str}")
+                    return (code_str, program)
         
         return None
+
+    def _enumerate_expressions(self, size: int) -> List[BSExpr]:
+        """
+        Enumerate ALL BSExpr of exactly the given size.
+        Size = number of AST nodes.
+        
+        This is bottom-up synthesis: systematically generate all programs.
+        """
+        if size == 1:
+            # Base case: terminals only
+            result = [BSVar('n')]
+            for c in range(4):  # Constants 0, 1, 2, 3
+                result.append(BSVal(c))
+            return result
+        
+        if size == 2:
+            # Rec(terminal) - size 2
+            result = []
+            for terminal in self._enumerate_expressions(1):
+                result.append(BSRecCall(terminal))
+            return result
+        
+        # Size >= 3: BinOp or Rec(expr)
+        result = []
+        
+        # Rec(expr of size-1)
+        for sub in self._enumerate_expressions(size - 1):
+            result.append(BSRecCall(sub))
+        
+        # BinOp(left, right) where size(left) + size(right) + 1 = size
+        for op in ['+', '-', '*']:
+            for left_size in range(1, size - 1):
+                right_size = size - 1 - left_size
+                if right_size >= 1:
+                    left_exprs = self._enumerate_expressions(left_size)
+                    right_exprs = self._enumerate_expressions(right_size)
+                    for left in left_exprs:
+                        for right in right_exprs:
+                            result.append(BSBinOp(op, left, right))
+        
+        return result
 
     def _detect_fibonacci_pattern(self, io_pairs: List[Dict[str, Any]]) -> bool:
         """Detect if I/O pairs match a Fibonacci-like pattern (dual base case)."""
@@ -15677,7 +15697,7 @@ class HRMSidecar:
         if io_examples:
             is_numeric = all(isinstance(p.get('input'), (int, float)) for p in io_examples)
             if is_numeric:
-                recursive_res = self.recursive_synthesize(io_examples, max_attempts=300)
+                recursive_res = self.recursive_synthesize(io_examples, max_size=5)
                 if recursive_res:
                     code_str, ast_obj = recursive_res
                     self.concept_count += 1
