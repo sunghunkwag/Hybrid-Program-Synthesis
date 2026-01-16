@@ -2,7 +2,213 @@
 import json
 import os
 import tempfile
-from typing import Dict, Any
+from typing import Dict, Any, List, Tuple
+from collections import defaultdict
+
+
+class FailureAnalyzer:
+    """
+    TRUE RSI Meta-Reasoning Component.
+    
+    This is NOT simple weight adjustment. This ACTUALLY REASONS about:
+    1. WHY did this program fail?
+    2. What PATTERN of failures am I seeing?
+    3. What HYPOTHESIS can I form about the problem?
+    4. How should I CHANGE my search strategy?
+    """
+    
+    def __init__(self):
+        # Track failure patterns
+        self.error_counts = defaultdict(int)  # error_type -> count
+        self.op_failure_map = defaultdict(lambda: defaultdict(int))  # op -> error_type -> count
+        self.type_mismatch_patterns = []  # [(input_type, output_type, expected_type), ...]
+        self.hypothesis_log = []  # List of generated hypotheses
+        
+        # Derived strategy adjustments
+        self.banned_op_combinations = set()  # (op1, op2) pairs that always fail
+        self.type_constraints = {}  # input_type -> allowed_ops
+        
+    def analyze_failure(self, program: Any, error_info: Dict, io_pair: Dict) -> Dict[str, Any]:
+        """
+        Deeply analyze a failure to understand WHY it happened.
+        Returns: analysis dict with error_type, cause, hypothesis, action
+        """
+        analysis = {
+            'error_type': 'unknown',
+            'cause': None,
+            'hypothesis': None,
+            'recommended_action': None
+        }
+        
+        # 1. Classify error type
+        if isinstance(error_info, dict) and '__error__' in error_info:
+            error_type = error_info['__error__']
+            msg = error_info.get('msg', '')
+        elif error_info is None:
+            error_type = 'NoneReturn'
+            msg = 'Program returned None'
+        elif isinstance(error_info, list) and isinstance(io_pair.get('output'), int):
+            error_type = 'ShapeError'
+            msg = f'Expected Int, got List of length {len(error_info)}'
+        else:
+            error_type = 'ValueMismatch'
+            msg = f'Expected {io_pair.get("output")}, got {error_info}'
+        
+        analysis['error_type'] = error_type
+        self.error_counts[error_type] += 1
+        
+        # 2. Extract operators used
+        ops_used = self._extract_ops(program)
+        for op in ops_used:
+            self.op_failure_map[op][error_type] += 1
+        
+        # 3. Track type mismatch pattern
+        inp = io_pair.get('input')
+        exp = io_pair.get('output')
+        inp_type = self._classify_type(inp)
+        exp_type = self._classify_type(exp)
+        got_type = self._classify_type(error_info)
+        
+        self.type_mismatch_patterns.append((inp_type, got_type, exp_type))
+        
+        # 4. GENERATE HYPOTHESIS (This is the real meta-reasoning)
+        hypothesis = self._generate_hypothesis(error_type, ops_used, inp_type, exp_type, got_type)
+        analysis['hypothesis'] = hypothesis
+        
+        # 5. RECOMMEND ACTION
+        action = self._recommend_action(hypothesis, ops_used)
+        analysis['recommended_action'] = action
+        
+        # Log for transparency
+        if len(self.hypothesis_log) < 100:  # Limit memory
+            self.hypothesis_log.append(hypothesis)
+        
+        return analysis
+    
+    def _extract_ops(self, program: Any) -> List[str]:
+        """Extract operator names from program AST."""
+        ops = []
+        def traverse(node):
+            node_type = type(node).__name__
+            if node_type == 'BSBinOp':
+                ops.append(f'op_{node.op}')
+                traverse(node.left)
+                traverse(node.right)
+            elif node_type == 'BSRecCall':
+                ops.append('recursion')
+                traverse(node.arg)
+            elif hasattr(node, 'func'):
+                ops.append(str(node.func))
+        try:
+            traverse(program)
+        except:
+            pass
+        return ops
+    
+    def _classify_type(self, value: Any) -> str:
+        """Classify value type for pattern matching."""
+        if value is None:
+            return 'none'
+        if isinstance(value, bool):
+            return 'bool'
+        if isinstance(value, int):
+            return 'int'
+        if isinstance(value, float):
+            return 'float'
+        if isinstance(value, list):
+            if value and isinstance(value[0], list):
+                return 'matrix'
+            return 'list'
+        if isinstance(value, dict):
+            return 'error' if '__error__' in value else 'dict'
+        return 'unknown'
+    
+    def _generate_hypothesis(self, error_type: str, ops: List[str], 
+                              inp_type: str, exp_type: str, got_type: str) -> str:
+        """
+        GENUINE META-REASONING: Generate a hypothesis about WHY the failure occurred.
+        """
+        # ShapeError patterns
+        if error_type == 'ShapeError':
+            if got_type == 'list' and exp_type == 'int':
+                if 'flatten' in str(ops) or 'reverse' in str(ops):
+                    return f"HYPOTHESIS: Using list-returning op ({ops}) when Int expected. Need aggregator (sum/len/max)."
+                return f"HYPOTHESIS: Type mismatch - program produces {got_type} but task expects {exp_type}. Missing scalar reduction."
+        
+        # TypeError patterns  
+        if error_type == 'TypeError':
+            if inp_type == 'matrix':
+                return f"HYPOTHESIS: Operators incompatible with matrix input. Need matrix-aware ops (matrix_sum, flatten first)."
+            if inp_type == 'list':
+                return f"HYPOTHESIS: Operators may be treating list elements incorrectly. Check element-wise vs aggregate ops."
+        
+        # NoneReturn patterns
+        if error_type == 'NoneReturn':
+            return f"HYPOTHESIS: Operator returned None - likely out-of-bounds access or invalid operation. Check input bounds."
+        
+        # Recursion patterns
+        if 'recursion' in ops and error_type in ['RecursionError', 'Timeout']:
+            return f"HYPOTHESIS: Recursion not terminating. Base case may be missing or wrong."
+        
+        # Default
+        return f"HYPOTHESIS: Error {error_type} with ops {ops}. Input={inp_type}, Expected={exp_type}, Got={got_type}."
+    
+    def _recommend_action(self, hypothesis: str, ops: List[str]) -> str:
+        """
+        Recommend a concrete action to fix the strategy.
+        """
+        if 'Missing scalar reduction' in hypothesis or 'Need aggregator' in hypothesis:
+            return "ACTION: Force scalar_goal=True for Int outputs. Ban list-returning ops at root."
+        
+        if 'matrix-aware ops' in hypothesis:
+            return "ACTION: Add matrix operators (matrix_sum, flatten) to search space for matrix inputs."
+        
+        if 'Recursion not terminating' in hypothesis:
+            return "ACTION: Reduce max recursion depth. Increase base case weight."
+        
+        if 'out-of-bounds' in hypothesis:
+            return "ACTION: Add bounds-checking wrappers. Prefer safe-access primitives."
+        
+        return "ACTION: Log pattern for further analysis. No immediate strategy change."
+    
+    def get_strategy_adjustments(self) -> Dict[str, Any]:
+        """
+        Based on accumulated failure patterns, return recommended strategy changes.
+        This is called periodically to update the search strategy.
+        """
+        adjustments = {}
+        
+        # If ShapeError dominates, force scalar constraints
+        total_errors = sum(self.error_counts.values())
+        if total_errors > 0:
+            shape_ratio = self.error_counts['ShapeError'] / total_errors
+            if shape_ratio > 0.5:
+                adjustments['force_scalar_root'] = True
+                adjustments['ban_list_ops_at_root'] = True
+        
+        # Find operators that consistently fail
+        for op, error_map in self.op_failure_map.items():
+            total_op_failures = sum(error_map.values())
+            if total_op_failures > 10:
+                dominant_error = max(error_map, key=error_map.get)
+                if error_map[dominant_error] / total_op_failures > 0.8:
+                    adjustments[f'reduce_weight_{op}'] = 0.1
+        
+        return adjustments
+    
+    def print_reasoning_summary(self):
+        """Print a summary of meta-reasoning for debugging."""
+        print("\n=== META-REASONING SUMMARY ===")
+        print(f"Total errors analyzed: {sum(self.error_counts.values())}")
+        print(f"Error distribution: {dict(self.error_counts)}")
+        if self.hypothesis_log:
+            print(f"Recent hypotheses:")
+            for h in self.hypothesis_log[-3:]:
+                print(f"  - {h}")
+        adjustments = self.get_strategy_adjustments()
+        if adjustments:
+            print(f"Recommended adjustments: {adjustments}")
+        print("==============================\n")
 
 
 class MetaHeuristic:

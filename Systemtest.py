@@ -15723,6 +15723,10 @@ class HRMSidecar:
             
         # [RSI] Meta-Heuristic Search Engine (Type A: Algorithm Improvement)
         self.meta_heuristic = MetaHeuristic()
+        
+        # [TRUE RSI] Failure Analyzer for genuine meta-reasoning
+        from meta_heuristic import FailureAnalyzer
+        self.failure_analyzer = FailureAnalyzer()
 
     def _get_type_signature(self, io_examples: List[Dict]) -> str:
         """
@@ -15873,10 +15877,22 @@ class HRMSidecar:
                     
                     return (code_str, program)
                 else:
-                    # [TRUE RSI] Learn from FAILURE too (negative feedback)
+                    # [TRUE RSI] Deep failure analysis with hypothesis generation
+                    if hasattr(self, 'failure_analyzer') and io_pairs:
+                        error_info = self._get_program_result(program, io_pairs[0])
+                        analysis = self.failure_analyzer.analyze_failure(program, error_info, io_pairs[0])
+                        # Every 50 failures, print reasoning summary
+                        if sum(self.failure_analyzer.error_counts.values()) % 50 == 0:
+                            self.failure_analyzer.print_reasoning_summary()
+                    
+                    # Also update heuristic weights (negative feedback)
                     self.meta_heuristic.learn_failure(program)
         
         # [TRUE RSI] Log failure analysis for meta-level reasoning
+        if hasattr(self, 'failure_analyzer'):
+            adjustments = self.failure_analyzer.get_strategy_adjustments()
+            if adjustments:
+                print(f"  > [RSI-Meta] Strategy adjustments recommended: {adjustments}")
         print(f"  > [RSI-Meta] FAILURE: Tested {sum(len(self._enumerate_expressions(s)) for s in range(1, max_size + 1))} programs, none passed.")
         
         return None
@@ -15923,6 +15939,23 @@ class HRMSidecar:
         return result
 
     # DELETED: _detect_fibonacci_pattern - No pattern-specific detection
+
+    def _get_program_result(self, program: BSExpr, io_pair: Dict[str, Any]) -> Any:
+        """
+        Execute program and return result (for failure analysis).
+        Returns error dict if exception occurs.
+        """
+        try:
+            n = int(io_pair['input'])
+            for base_k, base_v in [(0, 0), (0, 1), (1, 1)]:
+                try:
+                    result = self.recursive_interpreter.run_recursive(program, n, base_k, base_v)
+                    return result
+                except Exception as e:
+                    continue
+            return None
+        except Exception as e:
+            return {"__error__": type(e).__name__, "msg": str(e)}
 
     def _test_program(self, program: BSExpr, io_pairs: List[Dict[str, Any]]) -> bool:
         """Test a program against all I/O pairs. No special cases."""
