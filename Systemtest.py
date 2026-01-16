@@ -465,18 +465,22 @@ print("[Systemtest] [OK] Multi-Domain RSI Engine (Inlined).")
 # ==============================================================================
 
 class Optimizer:
-    """Optimizer class for optimization strategy."""
+    """Optimizer class with pure Python fallback."""
     def __init__(self, learning_rate: float = 0.01):
-        if np is None:
-            raise ImportError("numpy is required for Optimizer. Install with: pip install numpy")
         self.learning_rate = learning_rate
         self.history = []
 
-    def optimize(self, gradient: np.ndarray):
-        """Perform an optimization step."""
-        if np is None:
-            raise ImportError("numpy is required for Optimizer. Install with: pip install numpy")
-        change = gradient * self.learning_rate
+    def optimize(self, gradient: Any):
+        """Perform an optimization step (handles np.array or list)."""
+        if np and isinstance(gradient, np.ndarray):
+            change = gradient * self.learning_rate
+        else:
+            # Pure Python Fallback
+            if isinstance(gradient, list):
+                change = [g * self.learning_rate for g in gradient]
+            else:
+                change = gradient # Scalar?
+        
         self.history.append(change)
         return change
 
@@ -487,87 +491,122 @@ class Optimizer:
 
 class SimulationComponent:
     """
-    SimulationComponent class to simulate a dynamical system.
-    Implements proper state transitions where next state depends on current state.
+    SimulationComponent with graceful Numpy fallback.
+    Simulates a dynamical system (linear dynamics with decay + noise).
     """
     def __init__(self, id: int, max_steps: int = 100, state_dim: int = 10, 
                  noise_scale: float = 0.1, decay: float = 0.95):
-        if np is None:
-            raise ImportError("numpy is required for SimulationComponent. Install with: pip install numpy")
         self.id = id
         self.max_steps = max_steps
         self.state_dim = state_dim
         self.noise_scale = noise_scale
         self.decay = decay
         self.current_step = 0
-        self.state = np.random.rand(state_dim) * 2 - 1  # Initialize in [-1, 1]
-        self.history = [self.state.copy()]
         
-        # Transition matrix (learned or random dynamics)
-        self.transition_matrix = np.random.randn(state_dim, state_dim) * 0.3
-        # Make it stable (eigenvalues < 1) by scaling
-        eigenvalues = np.linalg.eigvals(self.transition_matrix)
-        max_eig = np.max(np.abs(eigenvalues))
-        if max_eig > 0.9:
-            self.transition_matrix *= 0.9 / max_eig
+        if np:
+            self.state = np.random.rand(state_dim) * 2 - 1
+            self.transition_matrix = np.random.randn(state_dim, state_dim) * 0.3
+            # Stability scaling
+            eigenvalues = np.linalg.eigvals(self.transition_matrix)
+            max_eig = np.max(np.abs(eigenvalues))
+            if max_eig > 0.9:
+                self.transition_matrix *= 0.9 / max_eig
+        else:
+            # Pure Python initialization
+            self.state = [random.uniform(-1, 1) for _ in range(state_dim)]
+            # Simplified interaction: Identity-like matrix for fallback to avoid expensive pure-py matmul logic complexity
+            # or just random diagonal for simplicity
+            self.transition_matrix = [[random.uniform(-0.1, 0.1) for _ in range(state_dim)] for _ in range(state_dim)]
+
+        self.history = [copy.deepcopy(self.state) if not np else self.state.copy()]
 
     def step(self):
-        """
-        Perform a simulation step with proper state transition.
-        State evolves as: x_{t+1} = decay * A @ x_t + noise
-        This is a stable linear dynamical system with noise.
-        """
-        # State transition: linear dynamics with decay and noise
-        transition = self.transition_matrix @ self.state
-        noise = np.random.randn(self.state_dim) * self.noise_scale
-        
-        self.state = self.decay * transition + noise
-        
-        # Clamp to prevent divergence
-        self.state = np.clip(self.state, -10.0, 10.0)
-        
-        self.history.append(self.state.copy())
+        """Perform a simulation step."""
+        if np:
+            transition = self.transition_matrix @ self.state
+            noise = np.random.randn(self.state_dim) * self.noise_scale
+            self.state = self.decay * transition + noise
+            self.state = np.clip(self.state, -10.0, 10.0)
+            self.history.append(self.state.copy())
+        else:
+            # Pure Python Step (Matrix-Vector Mul Fallback)
+            new_state = []
+            for r in range(self.state_dim):
+                # row dot state
+                row_val = sum(self.transition_matrix[r][c] * self.state[c] for c in range(self.state_dim))
+                noise = random.gauss(0, self.noise_scale)
+                val = self.decay * row_val + noise
+                # Clamp
+                val = max(-10.0, min(10.0, val))
+                new_state.append(val)
+            self.state = new_state
+            self.history.append(list(self.state))
+            
         self.current_step += 1
 
     def run(self):
-        """Run the simulation for the maximum steps."""
         while self.current_step < self.max_steps:
             self.step()
         return self.history
 
     def get_summary(self):
-        """Return a summary of the simulation."""
-        # Calculate state statistics
-        history_array = np.array(self.history)
+        if np:
+             history_array = np.array(self.history)
+             state_mean = np.mean(history_array, axis=0).tolist()
+             state_std = np.std(history_array, axis=0).tolist()
+             disp = np.linalg.norm(self.history[-1] - self.history[0])
+             final = self.state.tolist()
+        else:
+             # Pure Python stats
+             hist = self.history
+             n = len(hist)
+             state_mean = [sum(step[i] for step in hist)/n for i in range(self.state_dim)]
+             # Std dev
+             state_std = []
+             for i in range(self.state_dim):
+                 variance = sum((step[i] - state_mean[i])**2 for step in hist) / n
+                 state_std.append(math.sqrt(variance))
+             # Displacement (Euclidean)
+             fs = hist[-1]
+             i0 = hist[0]
+             disp = math.sqrt(sum((fs[i]-i0[i])**2 for i in range(self.state_dim)))
+             final = self.state
+
         return {
             "simulation_id": self.id,
             "steps_taken": self.current_step,
             "state_dim": self.state_dim,
-            "final_state": self.state.tolist(),
-            "state_mean": np.mean(history_array, axis=0).tolist(),
-            "state_std": np.std(history_array, axis=0).tolist(),
-            "total_displacement": np.linalg.norm(self.history[-1] - self.history[0]),
+            "final_state": final,
+            "state_mean": state_mean,
+            "state_std": state_std,
+            "total_displacement": disp,
             "history_length": len(self.history)
         }
 
 
 def run_user_injected_test():
     """Test function for Optimizer and SimulationComponent."""
-    if np is None:
-        print("[Systemtest] ⚠️  numpy is required for user-injected component tests.")
-        print("[Systemtest] ⚠️  Install numpy and re-run: python -m pip install numpy")
-        return
+    mode = "Numpy" if np else "Pure Python Fallback"
     print("=" * 60)
-    print("   USER-INJECTED COMPONENT TEST")
+    print(f"   USER-INJECTED COMPONENT TEST (Mode: {mode})")
     print("=" * 60)
     
     # 1. Test Optimizer
     print("\n[1] Testing Optimizer...")
     optimizer = Optimizer(learning_rate=0.01)
-    gradient = np.array([1.0, 2.0, 3.0, 4.0, 5.0])
+    if np:
+        gradient = np.array([1.0, 2.0, 3.0, 4.0, 5.0])
+    else:
+        gradient = [1.0, 2.0, 3.0, 4.0, 5.0]
+
     for i in range(5):
-        change = optimizer.optimize(gradient * (i + 1))
-        print(f"   Step {i+1}: Change={change[:3]}...")
+         if np:
+            change = optimizer.optimize(gradient * (i + 1))
+         else:
+            change = optimizer.optimize([g * (i + 1) for g in gradient])
+            
+         print(f"   Step {i+1}: Change={change[:3] if isinstance(change, list) or isinstance(change, np.ndarray) else change}...") 
+    
     print(f"   History Length: {len(optimizer.get_history())}")
     print("   [PASS] Optimizer functional.")
     
@@ -576,8 +615,8 @@ def run_user_injected_test():
     sim = SimulationComponent(id=1, max_steps=10, state_dim=5)
     
     # Capture initial state
-    initial_state = sim.state.copy()
-    print(f"   Initial State: {initial_state[:3]}...")
+    initial_state = copy.deepcopy(sim.state) if not np else sim.state.copy()
+    print(f"   Initial State: {initial_state[:3] if isinstance(initial_state, (list, np.ndarray)) else initial_state}...")
     
     history = sim.run()
     summary = sim.get_summary()
