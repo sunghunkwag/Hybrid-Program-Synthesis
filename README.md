@@ -1,3 +1,7 @@
+> [!IMPORTANT]
+> **This repository is for prototype research purposes only.**
+> It is an experimental implementation of Recursive Self-Improvement (RSI) concepts and is not intended for production use.
+
 # Hybrid Program Synthesis with RSI
 
 A hybrid program synthesis engine implementing Recursive Self-Improvement (RSI) with process isolation and hierarchical abstraction.
