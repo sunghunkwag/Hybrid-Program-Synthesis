@@ -15554,18 +15554,19 @@ class AdversarialTeacher:
             else:
                 return BSVar('n')
         
-        # Non-terminals
-        ops = ['+', '-', '*']
-        # Add recursion with probability based on depth (Teacher likes tricky recursion)
-        if self.rng.random() < 0.4:
-            # Recursive call: Rec(n-k)
-            k = self.rng.randint(1, 3)
-            return BSRecCall(BSBinOp('-', BSVar('n'), BSVal(k)))
+        # Non-terminals - ALL choices are equally weighted, no bias
+        # Rec takes ANY subexpression, not hardcoded patterns
+        choices = ['+', '-', '*', 'Rec']
+        choice = self.rng.choice(choices)
         
-        op = self.rng.choice(ops)
-        left = self._generate_random_program(depth - 1)
-        right = self._generate_random_program(depth - 1)
-        return BSBinOp(op, left, right)
+        if choice == 'Rec':
+            # Recursion with ANY subexpression - no hardcoded n-k pattern
+            arg = self._generate_random_program(depth - 1)
+            return BSRecCall(arg)
+        else:
+            left = self._generate_random_program(depth - 1)
+            right = self._generate_random_program(depth - 1)
+            return BSBinOp(choice, left, right)
 
     def evaluate_complexity(self, program: BSExpr) -> int:
         """Score the complexity of a program (AST size)."""
