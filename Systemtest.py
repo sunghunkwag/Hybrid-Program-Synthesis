@@ -15959,19 +15959,42 @@ class HRMSidecar:
                     self.synthesizer.register_primitive(name, wrapper)
                     print(f"  [RSI-Library] Learned new primitive '{name}' (DreamCoder-style reuse enabled)")
             
-            # [Bezalel] Feedback loop
+            # [RSI] Feedback loop
             if hasattr(self, 'bezalel'):
                 self.bezalel.feedback(code, 1.0)
             if hasattr(self.synthesizer, 'register_primitive'):
                 try:
-                    # Construct valid context with base primitives
+                    # Construct valid context
                     context = {}
                     context.update(self.synthesizer.interpreter.primitives)
                     
-                    # Create the function
-                    # code is like "mul(n, n)"
-                    # We want "lambda n: mul(n, n)"
-                    lambda_src = f"lambda n: {code}"
+                    # [FIX] Smart Signature Inference
+                    # Problem: Previous logic naively wrapped in "lambda n: ..."
+                    # If code was "var_0(n)", it became "lambda n: var_0(n)" -> var_0 undefined.
+                    # We must detect ALL free variables.
+                    
+                    import ast
+                    try:
+                        tree = ast.parse(code, mode='eval')
+                        free_vars = set()
+                        for node in ast.walk(tree):
+                            if isinstance(node, ast.Name) and isinstance(node.ctx, ast.Load):
+                                if node.id not in context and node.id not in ('True', 'False', 'None'):
+                                    free_vars.add(node.id)
+                    except:
+                        # Fallback for complex statements
+                        free_vars = {'n'}
+
+                    # Ensure 'n' is always first if present, or if empty (convention)
+                    params = sorted(list(free_vars))
+                    if 'n' in params:
+                        params.remove('n')
+                        params.insert(0, 'n')
+                    elif not params:
+                        params = ['n']
+                        
+                    param_str = ", ".join(params)
+                    lambda_src = f"lambda {param_str}: {code}"
                     
                     # Compile
                     func = eval(lambda_src, context)
@@ -15979,7 +16002,7 @@ class HRMSidecar:
                     # Name it
                     concept_name = f"concept_{self.concept_count}"
                     self.synthesizer.register_primitive(concept_name, func)
-                    print(f"  [RSI] Registered executable primitive: {concept_name} -> {code}")
+                    print(f"  [RSI] Registered executable primitive: {concept_name} -> {lambda_src}")
                     
                 except Exception as e:
                     print(f"  [RSI] Failed to register primitive: {e}")
