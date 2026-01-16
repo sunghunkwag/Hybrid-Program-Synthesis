@@ -1,0 +1,24 @@
+{
+  "trials": 200,
+  "success_count": 200,
+  "failure_counts": {
+    "TYPE_OR_SHAPE": 0,
+    "EXCEPTION": 0,
+    "LOW_SCORE_VALID": 0
+  },
+  "ops_used": {
+    "sum_list": 37,
+    "count_list": 11,
+    "prod_list": 37,
+    "mul": 1,
+    "index_of": 1,
+    "len": 28,
+    "add": 43,
+    "max_list": 44,
+    "abs_val": 1
+  },
+  "success_rate": 100.0,
+  "p1_pass": true,
+  "p2_pass": true,
+  "p4_pass": true
+}

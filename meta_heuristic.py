@@ -210,6 +210,18 @@ class FailureAnalyzer:
                     adjustments[f'reduce_weight_{op}'] = 0.5  # Reduce by 50%, not 90%
                     print(f"[META] Operator '{op}' fails with {dominant_error} {error_map[dominant_error]}/{total_op_failures} times, reducing weight")
         
+        # [C] Analyze type_mismatch_patterns → ban_list_producers
+        if len(self.type_mismatch_patterns) > 10:
+            # Count list→int patterns (input=list, expected=int, got=list)
+            list_to_int_fails = sum(1 for inp, got, exp in self.type_mismatch_patterns 
+                                     if inp == 'list' and exp == 'int' and got == 'list')
+            pattern_ratio = list_to_int_fails / len(self.type_mismatch_patterns)
+            
+            if pattern_ratio > 0.3:  # 30% threshold
+                adjustments['ban_list_producers'] = True
+                adjustments['list_producer_ops'] = {'reverse', 'split_half', 'init', 'tail', 'sort', 'filter_fn'}
+                print(f"[META] list→int pattern {pattern_ratio:.1%} > 30%, banning list producers: {adjustments['list_producer_ops']}")
+        
         return adjustments
     
     def print_reasoning_summary(self):
@@ -327,6 +339,23 @@ class MetaHeuristic:
         traverse(program)
         return features
 
+    def get_op_weights(self, op_names: List[str]) -> Dict[str, float]:
+        """
+        Return meta-learned weights for specific operators.
+        Used for multiplicative merge with library weights.
+        
+        Returns dict mapping op_name -> weight (default 1.0 if unknown).
+        """
+        result = {}
+        for op in op_names:
+            # Check if we have learned weight for this op
+            if op in self.weights:
+                result[op] = self.weights[op]
+            else:
+                # Default weight 1.0 (neutral)
+                result[op] = 1.0
+        return result
+
     def learn(self, successful_program: Any):
         """
         Update weights based on success.
@@ -346,28 +375,47 @@ class MetaHeuristic:
         self._save_weights()
         print(f"[RSI-Meta] 🧠 Updated Search Heuristics: {self.weights}")
 
-    def learn_failure(self, failed_program: Any):
+    def learn_failure(self, failed_program: Any, failure_type: str = "LOW_SCORE_VALID", context: Dict = None):
         """
-        [TRUE RSI] Update weights based on FAILURE.
-        Reinforcement Learning: Failed solution = Negative Reward.
+        [TRUE RSI] Update weights based on FAILURE with taxonomy.
         
-        This teaches the system to AVOID patterns that don't work,
-        not just to prefer patterns that do work. This is critical for
-        genuine recursive self-improvement.
+        failure_type must be one of:
+        - TYPE_OR_SHAPE: Type mismatch or shape error
+        - EXCEPTION: Runtime exception (ValueError, TypeError, etc.)
+        - LOW_SCORE_VALID: Valid execution but wrong result
         """
+        # Track failure by type
+        if not hasattr(self, 'failure_counts'):
+            self.failure_counts = {'TYPE_OR_SHAPE': 0, 'EXCEPTION': 0, 'LOW_SCORE_VALID': 0}
+        self.failure_counts[failure_type] = self.failure_counts.get(failure_type, 0) + 1
+        
         features = self._extract_features(failed_program)
-        lr = self.weights.get('learning_rate', 0.1) * 0.1  # Smaller learning rate for failures
+        base_lr = self.weights.get('learning_rate', 0.1)
+        
+        # Different penalty multipliers per failure type
+        penalty_mult = {
+            'TYPE_OR_SHAPE': 0.3,    # Severe: reduce weight significantly
+            'EXCEPTION': 0.2,         # Very severe: reduce more
+            'LOW_SCORE_VALID': 0.05   # Mild: small reduction
+        }
+        lr = base_lr * penalty_mult.get(failure_type, 0.1)
         
         # Decrease weights for features in failed programs
         for feat, count in features.items():
             if count > 0 and feat in self.weights and feat != 'learning_rate':
-                # Gradient descent-ish (negative feedback)
                 self.weights[feat] = max(0.01, self.weights[feat] - lr * count)
         
         # Increase depth_penalty if failed program was deep
         if features.get('size', 0) > 5:
             self.weights['depth_penalty'] = min(1.0, self.weights.get('depth_penalty', 0.1) + lr)
         
-        # Don't save on every failure (too expensive), just update in memory
-        # Save periodically in the main loop instead
+        # Track which ops failed for later banning
+        if context and 'ops_used' in context:
+            if not hasattr(self, 'failed_ops'):
+                self.failed_ops = {}
+            for op in context['ops_used']:
+                if op not in self.failed_ops:
+                    self.failed_ops[op] = {'TYPE_OR_SHAPE': 0, 'EXCEPTION': 0, 'LOW_SCORE_VALID': 0}
+                self.failed_ops[op][failure_type] += 1
+
 

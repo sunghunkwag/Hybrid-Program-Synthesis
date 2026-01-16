@@ -890,7 +890,24 @@ class NeuroGeneticSynthesizer:
         start_time = time.time()
         best_programs = []
         
-        ops, weights = self.library.get_weighted_ops()
+        # [A] MULTIPLICATIVE MERGE: Library weights × Meta-learned weights
+        from meta_heuristic import MetaHeuristic
+        meta_heuristic = MetaHeuristic()
+        
+        ops, lib_weights = self.library.get_weighted_ops()
+        meta_weights_dict = meta_heuristic.get_op_weights(ops)
+        
+        # Multiplicative merge: final_w[i] = lib_w[i] * meta_w[i]
+        weights = []
+        for i, op in enumerate(ops):
+            lib_w = lib_weights[i]
+            meta_w = meta_weights_dict.get(op, 1.0)
+            final_w = lib_w * meta_w
+            weights.append(max(0.01, final_w))  # Ensure non-zero
+        
+        # Store for later verification
+        self._current_meta_weights = meta_weights_dict
+        self._current_merged_weights = dict(zip(ops, weights))
         
         # [TYPE-CONSTRAINT] Prune search space based on input/output types (Refined Instruction 3)
         if io_pairs and 'input' in io_pairs[0] and 'output' in io_pairs[0]:
@@ -1007,6 +1024,21 @@ class NeuroGeneticSynthesizer:
                                 if adjustments.get('force_scalar_root'):
                                     scalar_goal = True
                                     print(f"  -> Scalar goal: FORCED for remaining generations")
+                                
+                                # [REAL ACTION 5] ban_list_producers: Remove list-producing ops
+                                if adjustments.get('ban_list_producers'):
+                                    list_producer_ops = adjustments.get('list_producer_ops', set())
+                                    before_count = len(ops)
+                                    ops = [o for o in ops if o not in list_producer_ops]
+                                    weights = [self._current_merged_weights.get(o, 1.0) for o in ops]
+                                    after_count = len(ops)
+                                    # Store for verification
+                                    if not hasattr(self, '_banned_ops_history'):
+                                        self._banned_ops_history = []
+                                    self._banned_ops_history.append({'before': before_count, 'after': after_count, 'banned': list_producer_ops})
+                                    print(f"  -> List producers: Banned {list_producer_ops}, ops {before_count} -> {after_count}")
+                                    # ASSERT: banned_ops actually reduced ops count
+                                    assert after_count < before_count or len(list_producer_ops & set(ops)) == 0, "ban_list_producers failed to reduce ops"
                                 
                                 # Refresh population with new constraints
                                 population = self._generate_initial_population(20, ops, weights, scalar_goal=scalar_goal)
