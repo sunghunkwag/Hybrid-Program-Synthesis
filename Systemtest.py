@@ -15436,6 +15436,9 @@ class HRMSidecar:
         self.mutator = GrammarMutator(self.meta_state)
         self.critic = SelfCritic(self.meta_state, SafeInterpreter(limit=5000))
         
+        # Recursive Synthesizer for fibonacci, factorial, sum_to_n
+        self.recursive_interpreter = SafeInterpreter(limit=10000)
+        
         # Bezalel Engine Integration (Universal Resonance)
         self.bezalel = BezalelSynthesizer()
 
@@ -15464,6 +15467,93 @@ class HRMSidecar:
             self.transfer_engine = ConceptTransferEngine(interpreter=self.synthesizer.interpreter)
             print("[HRM] ConceptTransferEngine initialized for human-level generalization.")
 
+    def recursive_synthesize(self, io_pairs: List[Dict[str, Any]], max_attempts: int = 500) -> Optional[Tuple[str, Any]]:
+        """
+        Synthesize recursive programs using BSRecCall enumeration.
+        Targets: fibonacci, factorial, sum_to_n
+        
+        Uses generate_random_program from SelfCritic with BSRecCall expressions,
+        evaluated by SafeInterpreter.run_recursive.
+        """
+        rng = random.Random()
+        
+        # Detect if task requires recursion (numeric inputs with specific patterns)
+        if not io_pairs:
+            return None
+        
+        # Check if all inputs are integers (recursive numeric task)
+        if not all(isinstance(p.get('input'), (int, float)) for p in io_pairs):
+            return None
+        
+        print(f"  > [RecursiveSynthesizer] Attempting recursive enumeration ({max_attempts} attempts)...")
+        
+        for attempt in range(max_attempts):
+            # Generate random BSExpr with BSRecCall
+            depth = rng.randint(2, 4)
+            program = self._generate_recursive_program(rng, depth)
+            
+            # Evaluate against all I/O pairs
+            matches = 0
+            valid = True
+            
+            for pair in io_pairs:
+                n = int(pair['input'])
+                expected = pair['output']
+                
+                try:
+                    # Use run_recursive with base case (k=0, v=0 or v=1)
+                    # Try different base cases
+                    result = None
+                    for base_k, base_v in [(0, 0), (0, 1), (1, 1), (1, 0)]:
+                        try:
+                            result = self.recursive_interpreter.run_recursive(program, n, base_k, base_v)
+                            if result == expected:
+                                break
+                        except:
+                            continue
+                    
+                    if result == expected:
+                        matches += 1
+                    else:
+                        valid = False
+                        break
+                except Exception:
+                    valid = False
+                    break
+            
+            if valid and matches == len(io_pairs):
+                # Found a solution!
+                code_str = str(program)
+                print(f"  > [RecursiveSynthesizer] SUCCESS! Found: {code_str}")
+                return (code_str, program)
+        
+        return None
+    
+    def _generate_recursive_program(self, rng: random.Random, depth: int) -> BSExpr:
+        """Generate random BSExpr with BSRecCall for recursive programs."""
+        if depth <= 0 or rng.random() < 0.25:
+            # Terminals
+            if rng.random() < 0.4:
+                return BSVal(rng.randint(0, 3))
+            else:
+                return BSVar('n')
+        
+        # Non-terminals - prioritize recursion
+        ops = ['+', '-', '*', 'Rec', 'Rec', 'Rec']  # Weight towards recursion
+        op = rng.choice(ops)
+        
+        if op == 'Rec':
+            # BSRecCall(n-1) or BSRecCall(n-2) patterns
+            decrement = rng.choice([1, 2])
+            arg = BSBinOp('-', BSVar('n'), BSVal(decrement))
+            return BSRecCall(arg)
+        elif op in ['+', '-', '*']:
+            left = self._generate_recursive_program(rng, depth - 1)
+            right = self._generate_recursive_program(rng, depth - 1)
+            return BSBinOp(op, left, right)
+        else:
+            return BSVar('n')
+
     def dream(
         self,
         experiences_as_code: List[str],
@@ -15485,6 +15575,20 @@ class HRMSidecar:
                     return [(str(top_expr), (top_expr, 0, 0))]
                 elif score >= 0.7:
                     print(f"  > [ConceptTransfer] Partial match '{top_name}' (score={score:.2f}). Continuing synthesis...")
+        
+        # 0.5 Recursive Synthesis (for fibonacci, factorial, sum_to_n)
+        # Check if this looks like a numeric recursive task
+        if io_examples:
+            is_numeric = all(isinstance(p.get('input'), (int, float)) for p in io_examples)
+            if is_numeric:
+                recursive_res = self.recursive_synthesize(io_examples, max_attempts=300)
+                if recursive_res:
+                    code_str, ast_obj = recursive_res
+                    self.concept_count += 1
+                    name = f"concept_rec_{self.concept_count}"
+                    final_code = f"def {name}(n):\n    return {code_str}"
+                    print(f"  [INVENTION] {name}: {code_str} (Recursive Synthesis)")
+                    return [(final_code, (ast_obj, 0, 0))]
         
         # 0. Bezalel Engine (Universal Resonance) - Honest & Fast
         # Only for I/O tasks.
