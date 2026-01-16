@@ -40,7 +40,7 @@ python Systemtest.py hrm-life
 
 - `Systemtest.py`: Main entry point containing the inlined Safe RSI engine.
 - `watchdog_executor.py`: Standalone reference implementation of the process isolation module.
-- `rsi_modifier_state.json`: Persisted state of the learned library and optimizer parameters.
+- `rsi_primitive_registry.json`: Persisted library of learned primitives (DAG structure) and their weights.
 
 ## License
 
