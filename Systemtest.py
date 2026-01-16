@@ -15884,9 +15884,19 @@ class HRMSidecar:
                         # Every 50 failures, print reasoning summary
                         if sum(self.failure_analyzer.error_counts.values()) % 50 == 0:
                             self.failure_analyzer.print_reasoning_summary()
+                        
+                        # Determine failure taxonomy based on error_info
+                        if isinstance(error_info, dict) and '__error__' in error_info:
+                            failure_type = 'EXCEPTION'
+                        elif isinstance(error_info, list) and isinstance(io_pairs[0].get('output'), int):
+                            failure_type = 'TYPE_OR_SHAPE'
+                        else:
+                            failure_type = 'LOW_SCORE_VALID'
+                    else:
+                        failure_type = 'LOW_SCORE_VALID'
                     
-                    # Also update heuristic weights (negative feedback)
-                    self.meta_heuristic.learn_failure(program)
+                    # Also update heuristic weights (negative feedback with taxonomy)
+                    self.meta_heuristic.learn_failure(program, failure_type=failure_type)
         
         # [TRUE RSI] Log failure analysis for meta-level reasoning
         if hasattr(self, 'failure_analyzer'):
@@ -15896,7 +15906,6 @@ class HRMSidecar:
                 
                 # [TRUE RSI] ACTUALLY APPLY THE ADJUSTMENTS (not just log!)
                 self._apply_strategy_adjustments(adjustments)
-                
         print(f"  > [RSI-Meta] FAILURE: Tested {sum(len(self._enumerate_expressions(s)) for s in range(1, max_size + 1))} programs, none passed.")
         
         return None

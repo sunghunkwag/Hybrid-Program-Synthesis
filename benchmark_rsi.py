@@ -72,25 +72,39 @@ def run_benchmark(trials=200):
     for i, task in enumerate(tasks):
         io_pairs = task['io_pairs']
         try:
+            # Enforce 0.95 threshold for "SUCCESS"
+            # synthesize returns list of (code, ast, complexity, score)
             solutions = synth.synthesize(io_pairs, timeout=0.5)
-            if solutions and len(solutions) > 0:
+            
+            # Filter for successful solutions (score >= 0.95)
+            valid_solutions = [s for s in solutions if s[3] >= 0.95]
+            
+            if valid_solutions:
                 results['success_count'] += 1
-                # Track ops used
-                code = solutions[0][0]
+                # Track ops used in the BEST solution
+                code = valid_solutions[0][0]
                 for op in synth.library.primitives.keys():
                     if op in code:
                         results['ops_used'][op] += 1
             else:
+                # Failed to find solution with score >= 0.95
                 results['failure_counts']['LOW_SCORE_VALID'] += 1
-        except TypeError as e:
+                
+        except TypeError:
             results['failure_counts']['TYPE_OR_SHAPE'] += 1
-        except Exception as e:
+        except Exception:
             results['failure_counts']['EXCEPTION'] += 1
         
         # Sample meta weights every 50 trials
         if (i + 1) % 50 == 0:
             meta_check = MetaHeuristic()
-            results['meta_weights_samples'].append(dict(meta_check.weights))
+            # Also capture meta-level error counts if available
+            meta_errors = getattr(meta_check, 'error_counts', {})
+            results['meta_weights_samples'].append({
+                'weights': dict(meta_check.weights),
+                'meta_errors': dict(meta_errors)
+            })
+            
             if hasattr(synth, '_banned_ops_history') and synth._banned_ops_history:
                 results['banned_ops_sizes'].append(len(synth._banned_ops_history))
             print(f"  Progress: {i+1}/{trials}")
@@ -101,10 +115,17 @@ def run_benchmark(trials=200):
     
     print(f"\n=== RESULTS ===")
     print(f"Success Rate: {results['success_count']}/{total} ({success_rate:.1f}%)")
-    print(f"Failure Distribution:")
+    print(f"Failure Distribution (Benchmark):")
     for ftype, count in results['failure_counts'].items():
         print(f"  {ftype}: {count} ({count/total*100:.1f}%)")
     
+    # Report Meta-level error categories if collected
+    if results['meta_weights_samples']:
+        last_sample = results['meta_weights_samples'][-1]
+        print(f"\nMeta-Level Error Categories (Cumulative):")
+        for err_type, count in last_sample.get('meta_errors', {}).items():
+             print(f"  {err_type}: {count}")
+
     print(f"\nTop 10 Operators Used:")
     sorted_ops = sorted(results['ops_used'].items(), key=lambda x: x[1], reverse=True)[:10]
     for op, count in sorted_ops:
@@ -112,7 +133,11 @@ def run_benchmark(trials=200):
     
     print(f"\nMeta Weights Evolution:")
     for i, sample in enumerate(results['meta_weights_samples']):
-        print(f"  Sample {i+1}: recursion={sample.get('recursion', 'N/A'):.2f}, depth_penalty={sample.get('depth_penalty', 'N/A'):.2f}")
+        weights = sample['weights']
+        # Use .get with appropriate defaults and conversion to float if needed
+        rec = float(weights.get('recursion', 1.0))
+        depth = float(weights.get('depth_penalty', 0.1))
+        print(f"  Sample {i+1}: recursion={rec:.2f}, depth_penalty={depth:.2f}")
     
     if results['banned_ops_sizes']:
         print(f"\nBanned Ops History Size: {results['banned_ops_sizes']}")

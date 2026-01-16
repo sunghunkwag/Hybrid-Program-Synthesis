@@ -7,15 +7,13 @@
     "LOW_SCORE_VALID": 0
   },
   "ops_used": {
-    "sum_list": 37,
-    "count_list": 11,
-    "prod_list": 37,
-    "mul": 1,
-    "index_of": 1,
-    "len": 28,
-    "add": 43,
-    "max_list": 44,
-    "abs_val": 1
+    "sum_list": 48,
+    "add": 35,
+    "count_list": 23,
+    "prod_list": 44,
+    "len": 18,
+    "max_list": 32,
+    "abs_val": 2
   },
   "success_rate": 100.0,
   "p1_pass": true,
