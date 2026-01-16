@@ -15707,6 +15707,112 @@ class HRMSidecar:
         # [RSI] Meta-Heuristic Search Engine (Type A: Algorithm Improvement)
         self.meta_heuristic = MetaHeuristic()
 
+    def _get_type_signature(self, io_examples: List[Dict]) -> str:
+        """
+        [PRESCRIPTION 2] Infer type signature from IO examples.
+        Returns: 'int_to_int', 'list_to_int', 'matrix_to_int', etc.
+        """
+        if not io_examples:
+            return "unknown"
+        
+        inp = io_examples[0].get('input')
+        outp = io_examples[0].get('output')
+        
+        # Determine input type
+        if isinstance(inp, int):
+            in_type = "int"
+        elif isinstance(inp, list):
+            if inp and isinstance(inp[0], list):
+                in_type = "matrix"
+            else:
+                in_type = "list"
+        else:
+            in_type = type(inp).__name__
+        
+        # Determine output type
+        if isinstance(outp, int):
+            out_type = "int"
+        elif isinstance(outp, list):
+            if outp and isinstance(outp[0], list):
+                out_type = "matrix"
+            else:
+                out_type = "list"
+        else:
+            out_type = type(outp).__name__
+        
+        return f"{in_type}_to_{out_type}"
+
+    def _extract_and_register_subtrees(self, code: str, context: Dict) -> None:
+        """
+        [PRESCRIPTION 3] Extract useful subtrees from successful solutions.
+        This turns 'lucky finds' into 'systematic capabilities'.
+        
+        DreamCoder-style library learning:
+        - Parse the AST of successful code
+        - Extract valid Call nodes (function applications)
+        - Register them as reusable primitives if not already known
+        """
+        import ast
+        try:
+            tree = ast.parse(code, mode='eval')
+        except:
+            return
+        
+        subtrees_registered = 0
+        existing_primitives = set(self.synthesizer.interpreter.primitives.keys())
+        
+        for node in ast.walk(tree):
+            # Extract Call nodes that represent function applications
+            if isinstance(node, ast.Call) and isinstance(node.func, ast.Name):
+                subtree_code = ast.unparse(node)
+                
+                # Skip if it's a single primitive call (no composition)
+                if subtree_code.count('(') < 2:
+                    continue
+                
+                # Skip if too complex
+                if len(subtree_code) > 100:
+                    continue
+                
+                # Create a hash for deduplication
+                subtree_hash = hash(subtree_code) % 10000
+                subtree_name = f"sub_{subtree_hash}"
+                
+                # Skip if already registered
+                if subtree_name in existing_primitives:
+                    continue
+                
+                # Try to compile and register
+                try:
+                    # Detect free variables
+                    subtree_tree = ast.parse(subtree_code, mode='eval')
+                    free_vars = set()
+                    for subnode in ast.walk(subtree_tree):
+                        if isinstance(subnode, ast.Name) and isinstance(subnode.ctx, ast.Load):
+                            if subnode.id not in context and subnode.id not in ('True', 'False', 'None'):
+                                free_vars.add(subnode.id)
+                    
+                    params = sorted(list(free_vars))
+                    if 'n' in params:
+                        params.remove('n')
+                        params.insert(0, 'n')
+                    elif not params:
+                        params = ['n']
+                    
+                    param_str = ", ".join(params)
+                    lambda_src = f"lambda {param_str}: {subtree_code}"
+                    
+                    func = eval(lambda_src, context)
+                    self.synthesizer.register_primitive(subtree_name, func)
+                    existing_primitives.add(subtree_name)
+                    subtrees_registered += 1
+                    
+                except Exception:
+                    pass
+        
+        if subtrees_registered > 0:
+            print(f"  [SUBTREE-RSI] Extracted {subtrees_registered} reusable sub-concepts from solution")
+
     def recursive_synthesize(self, io_pairs: List[Dict[str, Any]], max_size: int = 5) -> Optional[Tuple[str, Any]]:
         """
         Synthesize recursive programs using BOTTOM-UP ENUMERATION.
@@ -15887,7 +15993,9 @@ class HRMSidecar:
                 if recursive_res:
                     code_str, ast_obj = recursive_res
                     self.concept_count += 1
-                    name = f"concept_rec_{self.concept_count}"
+                    # [PRESCRIPTION 2] Type-signed concept name
+                    type_sig = self._get_type_signature(io_examples)
+                    name = f"concept_{self.concept_count}_{type_sig}"
                     final_code = f"def {name}(n):\n    return {code_str}"
                     print(f"  [INVENTION] {name}: {code_str} (Recursive Synthesis)")
                     return [(final_code, (ast_obj, 0, 0))]
@@ -15899,7 +16007,9 @@ class HRMSidecar:
                 if neuro_res:
                     code_str, ast_obj, complexity, score = neuro_res[0]
                     self.concept_count += 1
-                    name = f"concept_{self.concept_count}"
+                    # [PRESCRIPTION 2] Type-signed concept name
+                    type_sig = self._get_type_signature(io_examples)
+                    name = f"concept_{self.concept_count}_{type_sig}"
                     # Wrap as function definition for consistency
                     final_code = f"def {name}(n):\n    return {code_str}"
                     print(f"  [INVENTION] {name}: {code_str} (NeuroGenetic Synthesis)")
@@ -16024,6 +16134,9 @@ class HRMSidecar:
                     concept_name = f"concept_{self.concept_count}"
                     self.synthesizer.register_primitive(concept_name, func)
                     print(f"  [RSI] Registered executable primitive: {concept_name} -> {lambda_src}")
+                    
+                    # [PRESCRIPTION 3] Extract subtrees as reusable primitives
+                    self._extract_and_register_subtrees(code, context)
                     
                 except Exception as e:
                     print(f"  [RSI] Failed to register primitive: {e}")
