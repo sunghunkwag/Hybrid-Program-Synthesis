@@ -981,10 +981,36 @@ class NeuroGeneticSynthesizer:
                             adjustments = self.failure_analyzer.get_strategy_adjustments()
                             if adjustments:
                                 print(f"[Synthesizer] APPLYING META-ADJUSTMENTS: {adjustments}")
-                                # Actually apply: reduce weights for failing ops
+                                
+                                # [REAL ACTION 1] Reduce weights for failing ops
                                 for op, node in self.library.primitives.items():
                                     if f'reduce_weight_{op}' in adjustments:
+                                        old_weight = node.weight
                                         node.weight *= adjustments[f'reduce_weight_{op}']
+                                        print(f"  -> Reduced weight of '{op}': {old_weight:.2f} -> {node.weight:.2f}")
+                                
+                                # [REAL ACTION 2] increase_type_strictness: Ban more risky ops
+                                if adjustments.get('increase_type_strictness'):
+                                    extra_bans = {'elem_in', 'index_of', 'count_val', 'nth'}
+                                    ops = [o for o in ops if o not in extra_bans]
+                                    weights = [self.library.primitives[o].weight for o in ops if o in self.library.primitives]
+                                    print(f"  -> Type strictness: Banned {extra_bans}")
+                                
+                                # [REAL ACTION 3] ban_unsafe_ops: Remove None-returning ops
+                                if adjustments.get('ban_unsafe_ops'):
+                                    unsafe_ops = {'first', 'last', 'nth', 'head', 'tail'}
+                                    ops = [o for o in ops if o not in unsafe_ops]
+                                    weights = [self.library.primitives[o].weight for o in ops if o in self.library.primitives]
+                                    print(f"  -> Unsafe ops: Banned {unsafe_ops}")
+                                
+                                # [REAL ACTION 4] force_scalar_root: Set scalar_goal
+                                if adjustments.get('force_scalar_root'):
+                                    scalar_goal = True
+                                    print(f"  -> Scalar goal: FORCED for remaining generations")
+                                
+                                # Refresh population with new constraints
+                                population = self._generate_initial_population(20, ops, weights, scalar_goal=scalar_goal)
+                                print(f"  -> Regenerated population with {len(ops)} ops, scalar_goal={scalar_goal}")
                         
                 scored_pop.append((code, score))
             
