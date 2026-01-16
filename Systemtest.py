@@ -241,7 +241,7 @@ except ImportError:
 from abc import ABC, abstractmethod
 
 @dataclass
-class TaskSpec:
+class DomainTaskSpec:
     name: str
     difficulty: int
     examples: List[Dict[str, Any]]
@@ -255,11 +255,11 @@ class Domain(ABC):
         pass
 
     @abstractmethod
-    def generate_task(self, rng: random.Random, difficulty: int) -> TaskSpec:
+    def generate_task(self, rng: random.Random, difficulty: int) -> DomainTaskSpec:
         pass
 
     @abstractmethod
-    def evaluate(self, func: Any, task: TaskSpec) -> float:
+    def evaluate(self, func: Any, task: DomainTaskSpec) -> float:
         pass
     
     @abstractmethod
@@ -270,7 +270,7 @@ class StringDomain(Domain):
     def name(self) -> str:
         return "string"
 
-    def generate_task(self, rng: random.Random, difficulty: int) -> TaskSpec:
+    def generate_task(self, rng: random.Random, difficulty: int) -> DomainTaskSpec:
         task_types = ["reverse", "repeat", "slice_mid", "concat_self"]
         t_type = rng.choice(task_types)
         examples = []
@@ -283,9 +283,9 @@ class StringDomain(Domain):
             elif t_type == "concat_self": out = inp + inp
             else: out = inp
             examples.append({"input": inp, "output": out})
-        return TaskSpec(name=f"str_{t_type}", difficulty=difficulty, examples=examples, domain="string")
+        return DomainTaskSpec(name=f"str_{t_type}", difficulty=difficulty, examples=examples, domain="string")
 
-    def evaluate(self, func: Any, task: TaskSpec) -> float:
+    def evaluate(self, func: Any, task: DomainTaskSpec) -> float:
         total = 0.0
         for ex in task.examples:
             try: total += self.score(func(ex["input"]), ex["output"])
@@ -299,7 +299,7 @@ class ListDomain(Domain):
     def name(self) -> str:
         return "list"
 
-    def generate_task(self, rng: random.Random, difficulty: int) -> TaskSpec:
+    def generate_task(self, rng: random.Random, difficulty: int) -> DomainTaskSpec:
         task_types = ["reverse", "sort", "filter_pos", "double"]
         t_type = rng.choice(task_types)
         examples = []
@@ -311,9 +311,9 @@ class ListDomain(Domain):
             elif t_type == "double": out = [x * 2 for x in inp]
             else: out = inp
             examples.append({"input": inp, "output": out})
-        return TaskSpec(name=f"list_{t_type}", difficulty=difficulty, examples=examples, domain="list")
+        return DomainTaskSpec(name=f"list_{t_type}", difficulty=difficulty, examples=examples, domain="list")
 
-    def evaluate(self, func: Any, task: TaskSpec) -> float:
+    def evaluate(self, func: Any, task: DomainTaskSpec) -> float:
         total = 0.0
         for ex in task.examples:
             try: total += self.score(func(ex["input"]), ex["output"])
@@ -327,7 +327,7 @@ class BooleanDomain(Domain):
     def name(self) -> str:
         return "boolean"
 
-    def generate_task(self, rng: random.Random, difficulty: int) -> TaskSpec:
+    def generate_task(self, rng: random.Random, difficulty: int) -> DomainTaskSpec:
         task_types = ["and", "or", "xor", "nand"]
         t_type = rng.choice(task_types)
         examples = []
@@ -340,9 +340,9 @@ class BooleanDomain(Domain):
             elif t_type == "nand": out = 0 if (a and b) else 1
             else: out = a
             examples.append({"input": [a, b], "output": out})
-        return TaskSpec(name=f"bool_{t_type}", difficulty=difficulty, examples=examples, domain="boolean")
+        return DomainTaskSpec(name=f"bool_{t_type}", difficulty=difficulty, examples=examples, domain="boolean")
 
-    def evaluate(self, func: Any, task: TaskSpec) -> float:
+    def evaluate(self, func: Any, task: DomainTaskSpec) -> float:
         total = 0.0
         for ex in task.examples:
             try:
@@ -363,7 +363,7 @@ class DomainManager:
     def sample_domain(self, rng: random.Random) -> Domain:
         return rng.choice(self.domains)
 
-    def generate_task(self, rng: random.Random, difficulty: int = 1) -> TaskSpec:
+    def generate_task(self, rng: random.Random, difficulty: int = 1) -> DomainTaskSpec:
         return self.sample_domain(rng).generate_task(rng, difficulty)
 
 print("[Systemtest] [OK] Multi-Domain RSI Engine (Inlined).")
@@ -13602,7 +13602,8 @@ class SelfCritic:
         print(f"[Self-Critic] Challenging with: {program} (Len: {len_h})")
         start = time.time()
         try:
-            results = synthesizer.synthesize(io_pairs, deadline=time.time()+2.0, task_id="critic_challenge")
+            # FIX: Use timeout instead of deadline
+            results = synthesizer.synthesize(io_pairs, timeout=2.0, task_id="critic_challenge")
         except TimeoutError:
             print(f"[Self-Critic] SUCCESS: Generator TIMED OUT. {program}")
             return io_pairs
@@ -15902,9 +15903,14 @@ def run_synthesis_verification_suite(
             print(f"[Synthesis] Task {task['name']} ({len(io_pairs)} pairs)")
             tasks_attempted += 1
             try:
+                # FIX: NeuroGeneticSynthesizer expects timeout, not deadline
+                timeout_val = None
+                if deadline:
+                    timeout_val = max(0.1, deadline - time.time())
+
                 results = setup.synthesizer.synthesize(
                     io_pairs,
-                    deadline=deadline,
+                    timeout=timeout_val,
                     task_id=task["name"],
                     task_params=task_params,
                 )
