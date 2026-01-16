@@ -4735,7 +4735,15 @@ class InventionMetaController:
     def _retain(self, candidate: InventionProgramCandidate) -> None:
         if candidate.score <= 0:
             return
-        print(f"  [ARCHIVE] Retained candidate: score={candidate.score:.3f}")
+        
+        # [FIX] Anti-Stagnation: Do NOT archive if performance is 0.
+        # This prevents "cheap attractors" (short, useless programs) from polluting the archive.
+        metrics = candidate.diagnostics.get("metrics", {})
+        if metrics.get("performance", 0.0) <= 0.001:
+            # print(f"  [ARCHIVE] Skipped candidate (Score={candidate.score:.3f} but Perf=0)")
+            return
+
+        print(f"  [ARCHIVE] Retained candidate: score={candidate.score:.3f} (Perf={metrics.get('performance'):.2f})")
         self.archive.add(candidate)
         self.candidate_history.append(candidate)
         self._extract_helpers(candidate.code)

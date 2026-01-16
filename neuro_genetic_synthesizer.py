@@ -255,7 +255,11 @@ class PrimitiveValidator:
                 res = self.interpreter.run(ast_node, env)
                 if res == io['output']:
                     passes += 1
-            except Exception:
+                elif passes == 0 and len(str(res)) < 100: # Log first failure for diagnostics
+                     print(f"  [Validator-Diag] Fail: Input={io['input']} | Expected={io['output']} | Got={res}")
+            except Exception as e:
+                if passes == 0:
+                     print(f"  [Validator-Diag] Exception: {str(e)[:100]}")
                 pass
         
         score = passes / len(validation_ios)
