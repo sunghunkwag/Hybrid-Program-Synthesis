@@ -16137,17 +16137,64 @@ class AutonomousTaskGenerator:
     
     def generate(self):
         self.gen += 1
-        # Gating logic
-        if self.current_level == 1 and self.solved_counts[1] >= 5: self.current_level = 2
-        elif self.current_level == 2 and self.solved_counts[2] >= 5: self.current_level = 3
-        elif self.current_level == 3 and self.solved_counts[3] >= 5: self.current_level = 4
+        # Gating logic - Dynamic Promotion
+        # If we have solved enough tasks at current level, promote.
+        required_solves = 5 + (self.current_level // 2) # Slowly increase difficulty wall
+        current_solves = self.solved_counts.get(self.current_level, 0)
         
-        # Fallback if level undefined
+        if current_solves >= required_solves:
+            self.current_level += 1
+            # Reset count for new level? No, we just track globally or per level.
+            # self.solved_counts[self.current_level] = 0 # New level starts at 0
+        
+        # Open-Ended Generation for Level > 4
+        if self.current_level > 4:
+            return self._generate_dynamic_task(self.current_level)
+            
+        # Fallback if level undefined or <= 4 (Warmup Curriculum)
         pool = self.LEVELS.get(self.current_level, self.LEVELS[1])
         name, fn = self.rng.choice(pool)
         
         ios = [{"input": n, "output": fn(n)} for n in range(7)]
         return f"{name}_L{self.current_level}_g{self.gen}", ios
+
+    def _generate_dynamic_task(self, difficulty: int):
+        """
+        [OPEN-ENDED] Dynamically composes a task based on random math logic.
+        NO PRE-DEFINED TEMPLATES.
+        """
+        # 1. Randomly compose a transformation function
+        # e.g. f(x) = (x * A) + B or f(x) = x^2 + A
+        
+        op_type = self.rng.choice(["poly1", "poly2", "modulo_series", "fib_like"])
+        
+        # Complexity scales with level
+        mag = difficulty * 2
+        
+        a = self.rng.randint(1, min(mag, 10))
+        b = self.rng.randint(0, min(mag, 100))
+        c = self.rng.randint(1, 5)
+        
+        if op_type == "poly1":
+            # Linear: Ax + B
+            fn = lambda n: a * n + b
+            task_name = f"dynamic_linear_{a}n_plus_{b}"
+        elif op_type == "poly2":
+            # Quadratic: x^2 + B
+            fn = lambda n: n*n + b
+            task_name = f"dynamic_quad_sq_plus_{b}"
+        elif op_type == "modulo_series":
+            # Periodic: n % C * A
+            fn = lambda n: (n % c) * a
+            task_name = f"dynamic_mod_{c}_mul_{a}"
+        elif op_type == "fib_like":
+             # Recurrent: f(n) = f(n-1) + A (approx simple linear, but testing recursion)
+             # Actually let's do simple sum series: n*(n+1)*A
+             fn = lambda n: (n * (n + 1) // 2) * a
+             task_name = f"dynamic_triangular_mul_{a}"
+        
+        ios = [{"input": n, "output": int(fn(n))} for n in range(7)]
+        return f"{task_name}_L{self.current_level}_g{self.gen}", ios
     
     def report_solved(self, name):
         # Extract level from name format "name_LX_gY"

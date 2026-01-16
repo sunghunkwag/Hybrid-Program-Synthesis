@@ -794,13 +794,65 @@ class NeuroGeneticSynthesizer:
         return result == expected
 
     def _crossover(self, p1: str, p2: str) -> str:
-        # Simple subtree swap (string manipulation for now, better with AST)
-        # Split by parens
-        if '(' in p1 and '(' in p2:
-            base1 = p1.split('(', 1)[0]
-            args2 = p2.split('(', 1)[1][:-1]
-            return f"{base1}({args2})"
-        return p1
+        """
+        Structure-Aware Crossover using AST.
+        Swaps a random subtree from p1 with a random subtree from p2.
+        """
+        try:
+            # Parse both to AST
+            tree1 = ast.parse(p1, mode='eval')
+            tree2 = ast.parse(p2, mode='eval')
+            
+            # Helper to collect swappable nodes (Calls, BinOps, Names, Constants)
+            def collect_nodes(tree):
+                nodes = []
+                for node in ast.walk(tree):
+                    if isinstance(node, (ast.Call, ast.BinOp, ast.Name, ast.Constant)):
+                        nodes.append(node)
+                return nodes
+                
+            nodes1 = collect_nodes(tree1)
+            nodes2 = collect_nodes(tree2)
+            
+            if not nodes1 or not nodes2:
+                return p1
+                
+            # Pick valid targets
+            target1 = random.choice(nodes1)
+            replacement = random.choice(nodes2)
+            
+            # Swap logic (Transformer)
+            class SubtreeSwapper(ast.NodeTransformer):
+                def __init__(self, target, replacement):
+                    self.target = target
+                    self.replacement = replacement
+                    self.swapped = False
+                    
+                def visit(self, node):
+                    if not self.swapped and node is self.target:
+                        self.swapped = True
+                        return self.replacement
+                    return self.generic_visit(node)
+            
+            # Apply swap to a copy of tree1? 
+            # AST is mutable, but we need to preserve p1 forfallback?
+            # Easiest is to just modify tree1 in place. 
+            # NodeTransformer modifies the tree.
+            
+            swapper = SubtreeSwapper(target1, replacement)
+            new_tree = swapper.visit(tree1)
+            
+            if hasattr(ast, 'unparse'):
+                return ast.unparse(new_tree)
+            else:
+                # Fallback for older python (unlikely given requirements, but safe)
+                # If no unparse, we can't easily go back to string.
+                # Just return p1 as fail-safe.
+                return p1
+                
+        except Exception:
+            # Fallback on any parse/transform error
+            return p1
 
     def _mutate(self, code: str, ops, weights) -> str:
         if random.random() < 0.5:
