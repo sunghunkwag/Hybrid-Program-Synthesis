@@ -46,6 +46,7 @@ class SafeInterpreter(ast.NodeVisitor):
             try:
                 node = ast.parse(node, mode='eval').body
             except SyntaxError as e:
+                # [DIAGNOSTIC] Return syntax error details
                 return {"__error__": "SyntaxError", "msg": str(e)}
                 
         try:
@@ -63,9 +64,179 @@ class SafeInterpreter(ast.NodeVisitor):
         self._check_gas()
         return node.value
 
-    # ... (other visit methods unchanged) ...
+    def visit_Name(self, node):
+        self._check_gas()
+        if isinstance(node.ctx, ast.Load):
+            if node.id in self.local_env:
+                return self.local_env[node.id]
+            # Allow True/False/None
+            if node.id == "True": return True
+            if node.id == "False": return False
+            if node.id == "None": return None
+            raise ValueError(f"Undefined variable: {node.id}")
+        raise ValueError("Assignments not allowed in expression mode")
 
-# ... (jump to PrimitiveValidator) ...
+    def visit_BinOp(self, node):
+        self._check_gas()
+        left = self.visit(node.left)
+        right = self.visit(node.right)
+        op = node.op
+        
+        if isinstance(op, ast.Add): return left + right
+        if isinstance(op, ast.Sub): return left - right
+        if isinstance(op, ast.Mult): return left * right
+        if isinstance(op, ast.Div): return left / right if right != 0 else 0
+        if isinstance(op, ast.FloorDiv): return left // right if right != 0 else 0
+        if isinstance(op, ast.Mod): return left % right if right != 0 else 0
+        if isinstance(op, ast.Pow): return left ** right if isinstance(right, int) and right < 10 else 0 # Safety cap
+        return 0
+
+    def visit_UnaryOp(self, node):
+        self._check_gas()
+        operand = self.visit(node.operand)
+        op = node.op
+        if isinstance(op, ast.USub): return -operand
+        if isinstance(op, ast.Not): return not operand
+        return operand
+
+    def visit_Compare(self, node):
+        self._check_gas()
+        left = self.visit(node.left)
+        # Handle chain comparisons ideally, but for now simple single comparison
+        if len(node.ops) != 1: return False
+        
+        op = node.ops[0]
+        right = self.visit(node.comparators[0])
+        
+        if isinstance(op, ast.Eq): return left == right
+        if isinstance(op, ast.NotEq): return left != right
+        if isinstance(op, ast.Lt): return left < right
+        if isinstance(op, ast.LtE): return left <= right
+        if isinstance(op, ast.Gt): return left > right
+        if isinstance(op, ast.GtE): return left >= right
+        if isinstance(op, ast.In): return left in right
+        if isinstance(op, ast.NotIn): return left not in right
+        return False
+    
+    def visit_BoolOp(self, node):
+        self._check_gas()
+        values = [self.visit(v) for v in node.values]
+        if isinstance(node.op, ast.And):
+            return all(values)
+        if isinstance(node.op, ast.Or):
+            return any(values)
+        return False
+
+    def visit_IfExp(self, node):
+        self._check_gas()
+        test = self.visit(node.test)
+        if test:
+            return self.visit(node.body)
+        else:
+            return self.visit(node.orelse)
+
+    def visit_List(self, node):
+        self._check_gas()
+        return [self.visit(elt) for elt in node.elts]
+        
+    def visit_Subscript(self, node):
+        self._check_gas()
+        val = self.visit(node.value)
+        idx = self.visit(node.slice)
+        try:
+            return val[idx]
+        except:
+            return None
+
+    def visit_Call(self, node):
+        self._check_gas()
+        if not isinstance(node.func, ast.Name):
+            raise ValueError("Indirect calls not allowed")
+            
+        func_name = node.func.id
+        if func_name not in self.primitives:
+             raise ValueError(f"Unknown primitive: {func_name}")
+             
+        args = [self.visit(arg) for arg in node.args]
+        return self.primitives[func_name](*args)
+        
+    def generic_visit(self, node):
+        raise ValueError(f"Illegal AST node: {type(node).__name__}")
+
+
+# ==============================================================================
+# II. SEMANTIC HASHER (Quality Control)
+# ==============================================================================
+class SemanticHasher(ast.NodeVisitor):
+    """
+    Canonicalizes an AST to detect semantic duplicates.
+    Renames variables to arg0, arg1... to ignore naming differences.
+    """
+    def __init__(self):
+        self.tokens = []
+        self.var_map = {}
+        self.arg_counter = 0
+
+    def hash_code(self, code_str: str) -> str:
+        try:
+            node = ast.parse(code_str, mode='eval')
+            self.tokens = []
+            self.var_map = {}
+            self.arg_counter = 0
+            self.visit(node)
+            data = "|".join(self.tokens).encode('utf-8')
+            return hashlib.sha256(data).hexdigest()
+        except:
+            return "INVALID"
+
+    def visit_Name(self, node):
+        if isinstance(node.ctx, ast.Load):
+            if node.id not in self.var_map:
+                self.var_map[node.id] = f"ARG_{self.arg_counter}"
+                self.arg_counter += 1
+            self.tokens.append(f"VAR:{self.var_map[node.id]}")
+        else:
+            self.tokens.append("VAR_DEF")
+
+    def visit_Constant(self, node):
+        self.tokens.append(f"CONST:{node.value}")
+
+    def visit_Call(self, node):
+        self.tokens.append(f"CALL:{node.func.id}")
+        for arg in node.args:
+            self.visit(arg)
+
+    def visit_BinOp(self, node):
+        self.tokens.append(f"OP:{type(node.op).__name__}")
+        self.visit(node.left)
+        self.visit(node.right)
+        
+    def generic_visit(self, node):
+        self.tokens.append(type(node).__name__)
+        super().generic_visit(node)
+
+
+# ==============================================================================
+# III. LIBRARY MANAGER (RSI Registry & DAG)
+# ==============================================================================
+@dataclass
+class PrimitiveNode:
+    name: str
+    code: str  # Python source code string
+    ast_node: Any = field(default=None) # Parsed AST
+    level: int = 0
+    usage_count: int = 0
+    weight: float = 1.0
+    dependencies: List[str] = field(default_factory=list)
+    semantic_hash: str = ""
+
+class PrimitiveValidator:
+    """
+    Validates new primitives against a regression suite before acceptance.
+    Inspired by HotSwapManager check pattern.
+    """
+    def __init__(self, interpreter: SafeInterpreter):
+        self.interpreter = interpreter
 
     def validate(self, name: str, ast_node: Any, validation_ios: List[Dict]) -> bool:
         """
