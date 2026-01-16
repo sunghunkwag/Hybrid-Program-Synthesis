@@ -446,6 +446,15 @@ class NeuroGeneticSynthesizer:
         for name, node in self.library.primitives.items():
             self.library._compile_primitive_runtime(node, self.interpreter)
 
+    def register_primitive(self, name: str, func: Callable):
+        """Dynamic runtime registration of new primitives."""
+        if self.interpreter and hasattr(self.interpreter, 'primitives'):
+             self.interpreter.primitives[name] = func
+
+    def feedback(self, used_ops: List[str], success: bool):
+        """Delegate feedback to the library manager."""
+        self.library.feedback(used_ops, success)
+
     def synthesize(self, io_pairs: List[Dict], timeout: float = 2.0) -> List[Tuple[str, Any, int, int]]:
         """
         Attempts to find a program that satisfies the IO pairs.

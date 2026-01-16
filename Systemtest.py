@@ -15483,7 +15483,7 @@ class HRMSidecar:
                 try:
                     # Construct valid context with base primitives
                     context = {}
-                    context.update(NeuroInterpreter.PRIMS)
+                    context.update(self.synthesizer.interpreter.primitives)
                     
                     # Create the function
                     # code is like "mul(n, n)"
