@@ -992,6 +992,8 @@ class NeuroGeneticSynthesizer:
                     # Found Solution
                     print(f"[Synthesizer] 🏆 Solution found in Gen {generations}: {code}")
                     self._record_success(code, io_pairs)
+                    # [TRUE RSI] Organic Learning: Update persistent meta-weights on success
+                    meta_heuristic.learn(code)
                     best_programs.append((code, None, len(code), 1.0))
                     # Early exit on perfect solution? Or keep searching?
                     # Let's return immediate for speed
@@ -1002,6 +1004,16 @@ class NeuroGeneticSynthesizer:
                         env = {'n': io_pairs[0]['input']}
                         result = self.interpreter.run(code, env)
                         analysis = self.failure_analyzer.analyze_failure(code, result, io_pairs[0])
+                        
+                        # [TRUE RSI] Organic Learning: Update persistent meta-weights on failure
+                        err_type = analysis.get('error_type', 'unknown')
+                        mh_fail_type = 'LOW_SCORE_VALID'
+                        if err_type in ('ShapeError', 'TypeMismatch'):
+                            mh_fail_type = 'TYPE_OR_SHAPE'
+                        elif err_type in ('NoneReturn', 'timeout', 'unknown') or 'Error' in err_type:
+                            mh_fail_type = 'EXCEPTION'
+                        
+                        meta_heuristic.learn_failure(code, failure_type=mh_fail_type, context={'ops_used': analysis.get('ops_used', [])})
                         
                         # Every 100 failures, print reasoning summary and apply adjustments
                         total_failures = sum(self.failure_analyzer.error_counts.values())

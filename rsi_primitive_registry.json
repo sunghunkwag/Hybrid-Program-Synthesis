@@ -845,5 +845,26 @@
     "usage": 1,
     "weight": 5.0,
     "hash": "97f0ab7b9bff4e732a30d9347ba9d3c036534c569e17ea3ce8fe3a7e48c4083c"
+  },
+  "concept_186": {
+    "code": "abs_val(add(n, add(n, n)))",
+    "level": 1,
+    "usage": 1,
+    "weight": 5.0,
+    "hash": "a27e4b8dd74bfff878ca0552ac0a4d32cb961211aca852840ee508dc0c91d808"
+  },
+  "concept_187": {
+    "code": "matrix_sum(abs_val(n))",
+    "level": 1,
+    "usage": 1,
+    "weight": 5.0,
+    "hash": "a56e012cb7c17bef666e1adc350a8c338b2645bea9d0bc988787aa75f0a1e080"
+  },
+  "concept_188": {
+    "code": "abs_val(matrix_sum(n))",
+    "level": 1,
+    "usage": 1,
+    "weight": 5.0,
+    "hash": "a6a9353b81e794b9d37b14dcaf4d85f620a2ddf3cd8a6ab409df3cd290e8b06e"
   }
 }

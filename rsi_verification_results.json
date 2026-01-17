@@ -1,40 +1,1002 @@
 {
-  "weight_evidence_sample": [
-    {
-      "op": "mul",
-      "lib_w": 1.0,
-      "meta_w": 5.0,
-      "final_w": 5.0
-    },
-    {
-      "op": "sum_list",
-      "lib_w": 1.0,
-      "meta_w": 0.1,
-      "final_w": 0.1
-    }
-  ],
   "control": {
-    "success_count": 200,
-    "success_rate": 1.0,
+    "success_rate": 0.4222222222222222,
     "failures": {
-      "TYPE_OR_SHAPE": 0,
-      "EXCEPTION": 0,
-      "LOW_SCORE_VALID": 0
+      "NoSolution": 26
     },
-    "top_ops": {
-      "sum_list": 200
-    }
+    "ops_dist": {
+      "add": 4,
+      "matrix_sum": 14,
+      "abs_val": 1
+    },
+    "duration": 21.750515699386597
   },
   "treatment": {
-    "success_count": 200,
-    "success_rate": 1.0,
+    "success_rate": 0.4,
     "failures": {
-      "TYPE_OR_SHAPE": 0,
-      "EXCEPTION": 0,
-      "LOW_SCORE_VALID": 0
+      "NoSolution": 27
     },
-    "top_ops": {
-      "sum_list": 200
+    "ops_dist": {
+      "add": 4,
+      "matrix_sum": 14
+    },
+    "duration": 26.140735626220703
+  },
+  "weight_deltas": {
+    "depth_penalty": {
+      "before": 0.1,
+      "after": 1.0
+    },
+    "size": {
+      "before": 1.0,
+      "after": 0.21000000000000002
+    },
+    "sub": {
+      "before": 1.0,
+      "after": 0.01
+    },
+    "concept_111": {
+      "before": 1.0,
+      "after": 0.01
+    },
+    "n": {
+      "before": 1.0,
+      "after": 0.11
+    },
+    "concept_34": {
+      "before": 1.0,
+      "after": 0.01
+    },
+    "matrix_sum": {
+      "before": 1.0,
+      "after": 0.11
+    },
+    "mod": {
+      "before": 1.0,
+      "after": 0.01
+    },
+    "index_of": {
+      "before": 1.0,
+      "after": 0.01
+    },
+    "concept_14": {
+      "before": 1.0,
+      "after": 0.01
+    },
+    "concept_37": {
+      "before": 1.0,
+      "after": 0.01
+    },
+    "concept_125": {
+      "before": 1.0,
+      "after": 0.01
+    },
+    "concept_135": {
+      "before": 1.0,
+      "after": 0.01
+    },
+    "concept_61": {
+      "before": 1.0,
+      "after": 0.01
+    },
+    "mul": {
+      "before": 1.0,
+      "after": 0.01
+    },
+    "neg": {
+      "before": 1.0,
+      "after": 0.01
+    },
+    "concept_129": {
+      "before": 1.0,
+      "after": 0.01
+    },
+    "div": {
+      "before": 1.0,
+      "after": 0.01
+    },
+    "concept_39": {
+      "before": 1.0,
+      "after": 0.01
+    },
+    "concept_24": {
+      "before": 1.0,
+      "after": 0.01
+    },
+    "concept_19": {
+      "before": 1.0,
+      "after": 0.01
+    },
+    "concept_112": {
+      "before": 1.0,
+      "after": 0.01
+    },
+    "concept_128": {
+      "before": 1.0,
+      "after": 0.01
+    },
+    "abs_val": {
+      "before": 1.0,
+      "after": 0.01
+    },
+    "concept_17": {
+      "before": 1.0,
+      "after": 0.01
+    },
+    "concept_12": {
+      "before": 1.0,
+      "after": 0.01
+    },
+    "concept_48": {
+      "before": 1.0,
+      "after": 0.01
+    },
+    "concept_42": {
+      "before": 1.0,
+      "after": 0.01
+    },
+    "max_val": {
+      "before": 1.0,
+      "after": 0.01
+    },
+    "concept_126": {
+      "before": 1.0,
+      "after": 0.01
+    },
+    "concept_31": {
+      "before": 1.0,
+      "after": 0.01
+    },
+    "add": {
+      "before": 1.0,
+      "after": 0.01
+    },
+    "concept_63": {
+      "before": 1.0,
+      "after": 0.01
+    },
+    "concept_124": {
+      "before": 1.0,
+      "after": 0.01
+    },
+    "concept_36": {
+      "before": 1.0,
+      "after": 0.01
+    },
+    "concept_25": {
+      "before": 1.0,
+      "after": 0.01
+    },
+    "concept_115": {
+      "before": 1.0,
+      "after": 0.01
+    },
+    "concept_132": {
+      "before": 1.0,
+      "after": 0.01
+    },
+    "concept_18": {
+      "before": 1.0,
+      "after": 0.01
+    },
+    "concept_51": {
+      "before": 1.0,
+      "after": 0.01
+    },
+    "concept_133": {
+      "before": 1.0,
+      "after": 0.01
+    },
+    "concept_40": {
+      "before": 1.0,
+      "after": 0.01
+    },
+    "concept_47": {
+      "before": 1.0,
+      "after": 0.01
+    },
+    "concept_60": {
+      "before": 1.0,
+      "after": 0.01
+    },
+    "concept_136": {
+      "before": 1.0,
+      "after": 0.01
+    },
+    "concept_16": {
+      "before": 1.0,
+      "after": 0.01
+    },
+    "concept_178": {
+      "before": 1.0,
+      "after": 0.01
+    },
+    "concept_113": {
+      "before": 1.0,
+      "after": 0.01
+    },
+    "concept_22": {
+      "before": 1.0,
+      "after": 0.01
+    },
+    "concept_131": {
+      "before": 1.0,
+      "after": 0.01
+    },
+    "concept_38": {
+      "before": 1.0,
+      "after": 0.01
+    },
+    "concept_53": {
+      "before": 1.0,
+      "after": 0.01
+    },
+    "concept_109": {
+      "before": 1.0,
+      "after": 0.01
+    },
+    "concept_13": {
+      "before": 1.0,
+      "after": 0.01
+    },
+    "concept_33": {
+      "before": 1.0,
+      "after": 0.01
+    },
+    "concept_45": {
+      "before": 1.0,
+      "after": 0.01
+    },
+    "concept_32": {
+      "before": 1.0,
+      "after": 0.01
+    },
+    "concept_27": {
+      "before": 1.0,
+      "after": 0.01
+    },
+    "concept_122": {
+      "before": 1.0,
+      "after": 0.01
+    },
+    "concept_108": {
+      "before": 1.0,
+      "after": 0.01
+    },
+    "concept_114": {
+      "before": 1.0,
+      "after": 0.01
+    },
+    "count_list": {
+      "before": 1.0,
+      "after": 0.01
+    },
+    "len": {
+      "before": 1.0,
+      "after": 0.01
+    },
+    "concept_127": {
+      "before": 1.0,
+      "after": 0.01
+    },
+    "concept_43": {
+      "before": 1.0,
+      "after": 0.01
+    },
+    "concept_35": {
+      "before": 1.0,
+      "after": 0.01
+    },
+    "concept_130": {
+      "before": 1.0,
+      "after": 0.01
+    },
+    "concept_26": {
+      "before": 1.0,
+      "after": 0.01
+    },
+    "concept_15": {
+      "before": 1.0,
+      "after": 0.01
+    },
+    "concept_110": {
+      "before": 1.0,
+      "after": 0.01
+    },
+    "concept_57": {
+      "before": 1.0,
+      "after": 0.01
+    },
+    "concept_49": {
+      "before": 1.0,
+      "after": 0.01
+    },
+    "concept_29": {
+      "before": 1.0,
+      "after": 0.01
+    },
+    "concept_123": {
+      "before": 1.0,
+      "after": 0.01
+    },
+    "concept_30": {
+      "before": 1.0,
+      "after": 0.01
+    },
+    "concept_21": {
+      "before": 1.0,
+      "after": 0.01
+    },
+    "concept_54": {
+      "before": 1.0,
+      "after": 0.01
+    },
+    "concept_46": {
+      "before": 1.0,
+      "after": 0.01
+    },
+    "concept_23": {
+      "before": 1.0,
+      "after": 0.01
+    },
+    "concept_20": {
+      "before": 1.0,
+      "after": 0.01
+    },
+    "concept_28": {
+      "before": 1.0,
+      "after": 0.01
+    },
+    "concept_41": {
+      "before": 1.0,
+      "after": 0.01
+    },
+    "concept_174": {
+      "before": 1.0,
+      "after": 0.01
+    },
+    "concept_44": {
+      "before": 1.0,
+      "after": 0.01
+    },
+    "concept_50": {
+      "before": 1.0,
+      "after": 0.01
+    },
+    "concept_59": {
+      "before": 1.0,
+      "after": 0.01
+    },
+    "concept_62": {
+      "before": 1.0,
+      "after": 0.01
+    },
+    "concept_52": {
+      "before": 1.0,
+      "after": 0.01
+    },
+    "concept_58": {
+      "before": 1.0,
+      "after": 0.01
+    },
+    "concept_56": {
+      "before": 1.0,
+      "after": 0.01
+    },
+    "concept_121": {
+      "before": 1.0,
+      "after": 0.01
+    },
+    "concept_158": {
+      "before": 1.0,
+      "after": 0.019999999999999213
+    },
+    "concept_142": {
+      "before": 1.0,
+      "after": 0.01
+    },
+    "map_square": {
+      "before": 1.0,
+      "after": 0.8949999999999999
+    },
+    "concept_134": {
+      "before": 1.0,
+      "after": 0.01
+    },
+    "concept_116": {
+      "before": 1.0,
+      "after": 0.01
+    },
+    "concept_152": {
+      "before": 1.0,
+      "after": 0.01
+    },
+    "concept_55": {
+      "before": 1.0,
+      "after": 0.01
+    },
+    "concept_177": {
+      "before": 1.0,
+      "after": 0.01
+    },
+    "concept_138": {
+      "before": 1.0,
+      "after": 0.01
+    },
+    "concept_175": {
+      "before": 1.0,
+      "after": 0.01
+    },
+    "concept_161": {
+      "before": 1.0,
+      "after": 0.01
+    },
+    "concept_162": {
+      "before": 1.0,
+      "after": 0.01
+    },
+    "filter_positive": {
+      "before": 1.0,
+      "after": 0.2999999999999994
+    },
+    "concept_187": {
+      "before": 1.0,
+      "after": 0.01
+    },
+    "concept_156": {
+      "before": 1.0,
+      "after": 0.01
+    },
+    "map_double": {
+      "before": 1.0,
+      "after": 0.37999999999999945
+    },
+    "concept_141": {
+      "before": 1.0,
+      "after": 0.01
+    },
+    "concept_137": {
+      "before": 1.0,
+      "after": 0.01
+    },
+    "concept_169": {
+      "before": 1.0,
+      "after": 0.01
+    },
+    "concept_176": {
+      "before": 1.0,
+      "after": 0.01
+    },
+    "concept_144": {
+      "before": 1.0,
+      "after": 0.01
+    },
+    "concept_167": {
+      "before": 1.0,
+      "after": 0.09999999999999923
+    },
+    "concept_166": {
+      "before": 1.0,
+      "after": 0.01
+    },
+    "concept_185": {
+      "before": 1.0,
+      "after": 0.01
+    },
+    "if_then_else": {
+      "before": 1.0,
+      "after": 0.01
+    },
+    "filter_fn": {
+      "before": 1.0,
+      "after": 0.8599999999999999
+    },
+    "concept_146": {
+      "before": 1.0,
+      "after": 0.01
+    },
+    "concept_188": {
+      "before": 1.0,
+      "after": 0.01
+    },
+    "concept_145": {
+      "before": 1.0,
+      "after": 0.01
+    },
+    "concept_170": {
+      "before": 1.0,
+      "after": 0.01
+    },
+    "concept_159": {
+      "before": 1.0,
+      "after": 0.01
+    },
+    "concept_139": {
+      "before": 1.0,
+      "after": 0.01
+    },
+    "concept_184": {
+      "before": 1.0,
+      "after": 0.019999999999999213
+    },
+    "concept_183": {
+      "before": 1.0,
+      "after": 0.01
+    },
+    "concept_182": {
+      "before": 1.0,
+      "after": 0.01
+    },
+    "concept_154": {
+      "before": 1.0,
+      "after": 0.01
+    },
+    "concept_163": {
+      "before": 1.0,
+      "after": 0.01
+    },
+    "slice_list": {
+      "before": 1.0,
+      "after": 0.2199999999999993
+    },
+    "concept_171": {
+      "before": 1.0,
+      "after": 0.01
+    },
+    "concept_155": {
+      "before": 1.0,
+      "after": 0.019999999999999213
+    },
+    "concept_140": {
+      "before": 1.0,
+      "after": 0.01
+    },
+    "concept_180": {
+      "before": 1.0,
+      "after": 0.01
+    },
+    "concept_153": {
+      "before": 1.0,
+      "after": 0.01
+    },
+    "concept_168": {
+      "before": 1.0,
+      "after": 0.07999999999999922
+    },
+    "concept_181": {
+      "before": 1.0,
+      "after": 0.01
+    },
+    "concept_186": {
+      "before": 1.0,
+      "after": 0.01
+    },
+    "concept_179": {
+      "before": 1.0,
+      "after": 0.01
+    },
+    "concept_165": {
+      "before": 1.0,
+      "after": 0.019999999999999213
+    },
+    "concept_164": {
+      "before": 1.0,
+      "after": 0.01
+    },
+    "concept_172": {
+      "before": 1.0,
+      "after": 0.01
+    },
+    "take": {
+      "before": 1.0,
+      "after": 0.3399999999999994
+    },
+    "recurse_fn": {
+      "before": 1.0,
+      "after": 0.01
+    },
+    "concept_143": {
+      "before": 1.0,
+      "after": 0.01
+    },
+    "max_list": {
+      "before": 1.0,
+      "after": 0.23999999999999932
+    },
+    "sum_list": {
+      "before": 1.0,
+      "after": 0.5599999999999996
+    },
+    "filter_negative": {
+      "before": 1.0,
+      "after": 0.01
+    },
+    "sort_desc": {
+      "before": 1.0,
+      "after": 0.9149999999999999
+    },
+    "concept_173": {
+      "before": 1.0,
+      "after": 0.01
+    },
+    "neq": {
+      "before": 1.0,
+      "after": 0.28999999999999937
+    },
+    "snoc": {
+      "before": 1.0,
+      "after": 0.96
+    },
+    "insert_sorted": {
+      "before": 1.0,
+      "after": 0.17999999999999927
+    },
+    "range_list": {
+      "before": 1.0,
+      "after": 0.01
+    },
+    "concept_157": {
+      "before": 1.0,
+      "after": 0.01
+    },
+    "prod_list": {
+      "before": 1.0,
+      "after": 0.4499999999999995
+    },
+    "not_op": {
+      "before": 1.0,
+      "after": 0.08499999999999922
+    },
+    "singleton": {
+      "before": 1.0,
+      "after": 0.8899999999999999
+    },
+    "concept_160": {
+      "before": 1.0,
+      "after": 0.01
+    },
+    "is_empty": {
+      "before": 1.0,
+      "after": 0.3149999999999994
+    },
+    "first": {
+      "before": 1.0,
+      "after": 0.6949999999999997
+    },
+    "concat": {
+      "before": 1.0,
+      "after": 0.01
+    },
+    "row_sums": {
+      "before": 1.0,
+      "after": 0.01
+    },
+    "lte": {
+      "before": 1.0,
+      "after": 0.01
+    },
+    "init": {
+      "before": 1.0,
+      "after": 0.014999999999999208
+    },
+    "eq": {
+      "before": 1.0,
+      "after": 0.7749999999999998
+    },
+    "and_op": {
+      "before": 1.0,
+      "after": 0.01
+    },
+    "get": {
+      "before": 1.0,
+      "after": 0.9199999999999999
+    },
+    "matrix_shape": {
+      "before": 1.0,
+      "after": 0.13999999999999924
+    },
+    "col_sums": {
+      "before": 1.0,
+      "after": 0.1349999999999993
+    },
+    "min_val": {
+      "before": 1.0,
+      "after": 0.7999999999999998
+    },
+    "if_lt": {
+      "before": 1.0,
+      "after": 0.94
+    },
+    "filter_even": {
+      "before": 1.0,
+      "after": 0.01
+    },
+    "drop": {
+      "before": 1.0,
+      "after": 0.01
+    },
+    "lt": {
+      "before": 1.0,
+      "after": 0.01
+    },
+    "sort_asc": {
+      "before": 1.0,
+      "after": 0.01
+    },
+    "fold_fn": {
+      "before": 1.0,
+      "after": 0.01
+    },
+    "gt": {
+      "before": 1.0,
+      "after": 0.6549999999999997
+    },
+    "split_half": {
+      "before": 1.0,
+      "after": 0.3199999999999994
+    },
+    "map_negate": {
+      "before": 1.0,
+      "after": 0.1999999999999993
+    },
+    "merge_sorted": {
+      "before": 1.0,
+      "after": 0.3399999999999994
+    },
+    "gte": {
+      "before": 1.0,
+      "after": 0.25999999999999934
+    },
+    "tail": {
+      "before": 1.0,
+      "after": 0.25999999999999934
+    },
+    "reverse": {
+      "before": 1.0,
+      "after": 0.2999999999999994
+    },
+    "map_fn": {
+      "before": 1.0,
+      "after": 0.01
+    },
+    "min_list": {
+      "before": 1.0,
+      "after": 0.2949999999999994
+    },
+    "or_op": {
+      "before": 1.0,
+      "after": 0.01
+    },
+    "cons": {
+      "before": 1.0,
+      "after": 0.9149999999999999
+    },
+    "filter_odd": {
+      "before": 1.0,
+      "after": 0.47999999999999954
+    },
+    "elem_in": {
+      "before": 1.0,
+      "after": 0.7399999999999998
+    },
+    "flatten": {
+      "before": 1.0,
+      "after": 0.2199999999999993
+    },
+    "if_gt": {
+      "before": 1.0,
+      "after": 0.27999999999999936
+    },
+    "last": {
+      "before": 1.0,
+      "after": 0.47999999999999954
     }
+  },
+  "initial_weights": {
+    "recursion": 1.0,
+    "op_plus": 1.0,
+    "op_minus": 1.0,
+    "op_mult": 1.0,
+    "depth_penalty": 0.1,
+    "learning_rate": 0.1
+  },
+  "final_weights": {
+    "recursion": 1.0,
+    "op_plus": 1.0,
+    "op_minus": 1.0,
+    "op_mult": 1.0,
+    "depth_penalty": 1.0,
+    "learning_rate": 0.1,
+    "size": 0.21000000000000002,
+    "sub": 0.01,
+    "concept_111": 0.01,
+    "n": 0.11,
+    "concept_34": 0.01,
+    "matrix_sum": 0.11,
+    "mod": 0.01,
+    "index_of": 0.01,
+    "concept_14": 0.01,
+    "concept_37": 0.01,
+    "concept_125": 0.01,
+    "concept_135": 0.01,
+    "concept_61": 0.01,
+    "mul": 0.01,
+    "neg": 0.01,
+    "concept_129": 0.01,
+    "div": 0.01,
+    "concept_39": 0.01,
+    "concept_24": 0.01,
+    "concept_19": 0.01,
+    "concept_112": 0.01,
+    "concept_128": 0.01,
+    "abs_val": 0.01,
+    "concept_17": 0.01,
+    "concept_12": 0.01,
+    "concept_48": 0.01,
+    "concept_42": 0.01,
+    "max_val": 0.01,
+    "concept_126": 0.01,
+    "concept_31": 0.01,
+    "add": 0.01,
+    "concept_63": 0.01,
+    "concept_124": 0.01,
+    "concept_36": 0.01,
+    "concept_25": 0.01,
+    "concept_115": 0.01,
+    "concept_132": 0.01,
+    "concept_18": 0.01,
+    "concept_51": 0.01,
+    "concept_133": 0.01,
+    "concept_40": 0.01,
+    "concept_47": 0.01,
+    "concept_60": 0.01,
+    "concept_136": 0.01,
+    "concept_16": 0.01,
+    "concept_178": 0.01,
+    "concept_113": 0.01,
+    "concept_22": 0.01,
+    "concept_131": 0.01,
+    "concept_38": 0.01,
+    "concept_53": 0.01,
+    "concept_109": 0.01,
+    "concept_13": 0.01,
+    "concept_33": 0.01,
+    "concept_45": 0.01,
+    "concept_32": 0.01,
+    "concept_27": 0.01,
+    "concept_122": 0.01,
+    "concept_108": 0.01,
+    "concept_114": 0.01,
+    "count_list": 0.01,
+    "len": 0.01,
+    "concept_127": 0.01,
+    "concept_43": 0.01,
+    "concept_35": 0.01,
+    "concept_130": 0.01,
+    "concept_26": 0.01,
+    "concept_15": 0.01,
+    "concept_110": 0.01,
+    "concept_57": 0.01,
+    "concept_49": 0.01,
+    "concept_29": 0.01,
+    "concept_123": 0.01,
+    "concept_30": 0.01,
+    "concept_21": 0.01,
+    "concept_54": 0.01,
+    "concept_46": 0.01,
+    "concept_23": 0.01,
+    "concept_20": 0.01,
+    "concept_28": 0.01,
+    "concept_41": 0.01,
+    "concept_174": 0.01,
+    "concept_44": 0.01,
+    "concept_50": 0.01,
+    "concept_59": 0.01,
+    "concept_62": 0.01,
+    "concept_52": 0.01,
+    "concept_58": 0.01,
+    "concept_56": 0.01,
+    "concept_121": 0.01,
+    "concept_158": 0.019999999999999213,
+    "concept_142": 0.01,
+    "map_square": 0.8949999999999999,
+    "concept_134": 0.01,
+    "concept_116": 0.01,
+    "concept_152": 0.01,
+    "concept_55": 0.01,
+    "concept_177": 0.01,
+    "concept_138": 0.01,
+    "concept_175": 0.01,
+    "concept_161": 0.01,
+    "concept_162": 0.01,
+    "filter_positive": 0.2999999999999994,
+    "concept_187": 0.01,
+    "concept_156": 0.01,
+    "map_double": 0.37999999999999945,
+    "concept_141": 0.01,
+    "concept_137": 0.01,
+    "concept_169": 0.01,
+    "concept_176": 0.01,
+    "concept_144": 0.01,
+    "concept_167": 0.09999999999999923,
+    "concept_166": 0.01,
+    "concept_185": 0.01,
+    "if_then_else": 0.01,
+    "filter_fn": 0.8599999999999999,
+    "concept_146": 0.01,
+    "concept_188": 0.01,
+    "concept_145": 0.01,
+    "concept_170": 0.01,
+    "concept_159": 0.01,
+    "concept_139": 0.01,
+    "concept_184": 0.019999999999999213,
+    "concept_183": 0.01,
+    "concept_182": 0.01,
+    "concept_154": 0.01,
+    "concept_163": 0.01,
+    "slice_list": 0.2199999999999993,
+    "concept_171": 0.01,
+    "concept_155": 0.019999999999999213,
+    "concept_140": 0.01,
+    "concept_180": 0.01,
+    "concept_153": 0.01,
+    "concept_168": 0.07999999999999922,
+    "concept_181": 0.01,
+    "concept_186": 0.01,
+    "concept_179": 0.01,
+    "concept_165": 0.019999999999999213,
+    "concept_164": 0.01,
+    "concept_172": 0.01,
+    "take": 0.3399999999999994,
+    "recurse_fn": 0.01,
+    "concept_143": 0.01,
+    "max_list": 0.23999999999999932,
+    "sum_list": 0.5599999999999996,
+    "filter_negative": 0.01,
+    "sort_desc": 0.9149999999999999,
+    "concept_173": 0.01,
+    "neq": 0.28999999999999937,
+    "snoc": 0.96,
+    "insert_sorted": 0.17999999999999927,
+    "range_list": 0.01,
+    "concept_157": 0.01,
+    "prod_list": 0.4499999999999995,
+    "not_op": 0.08499999999999922,
+    "singleton": 0.8899999999999999,
+    "concept_160": 0.01,
+    "is_empty": 0.3149999999999994,
+    "first": 0.6949999999999997,
+    "concat": 0.01,
+    "row_sums": 0.01,
+    "lte": 0.01,
+    "init": 0.014999999999999208,
+    "eq": 0.7749999999999998,
+    "and_op": 0.01,
+    "get": 0.9199999999999999,
+    "matrix_shape": 0.13999999999999924,
+    "col_sums": 0.1349999999999993,
+    "min_val": 0.7999999999999998,
+    "if_lt": 0.94,
+    "filter_even": 0.01,
+    "drop": 0.01,
+    "lt": 0.01,
+    "sort_asc": 0.01,
+    "fold_fn": 0.01,
+    "gt": 0.6549999999999997,
+    "split_half": 0.3199999999999994,
+    "map_negate": 0.1999999999999993,
+    "merge_sorted": 0.3399999999999994,
+    "gte": 0.25999999999999934,
+    "tail": 0.25999999999999934,
+    "reverse": 0.2999999999999994,
+    "map_fn": 0.01,
+    "min_list": 0.2949999999999994,
+    "or_op": 0.01,
+    "cons": 0.9149999999999999,
+    "filter_odd": 0.47999999999999954,
+    "elem_in": 0.7399999999999998,
+    "flatten": 0.2199999999999993,
+    "if_gt": 0.27999999999999936,
+    "last": 0.47999999999999954
   }
 }

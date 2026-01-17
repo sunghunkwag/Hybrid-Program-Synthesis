@@ -4,6 +4,7 @@ import os
 import tempfile
 from typing import Dict, Any, List, Tuple
 from collections import defaultdict
+import re
 
 
 class FailureAnalyzer:
@@ -299,7 +300,8 @@ class MetaHeuristic:
             return {}
         sanitized = dict(self.DEFAULT_WEIGHTS)
         for key, value in data.items():
-            if key in sanitized and isinstance(value, (int, float)):
+            # [RSI] Allow organic expansion - do not filter by DEFAULT_WEIGHTS keys
+            if isinstance(value, (int, float)):
                 sanitized[key] = float(value)
         return sanitized
             
@@ -325,6 +327,24 @@ class MetaHeuristic:
         return score
         
     def _extract_features(self, program: Any) -> Dict[str, int]:
+        features = defaultdict(int)
+        
+        if isinstance(program, (list, tuple)):
+            features['size'] = len(program)
+            for item in program:
+                if isinstance(item, str):
+                    features[item] += 1
+            return dict(features)
+            
+        # [RSI] Handle String Programs (NeuroGeneticSynthesizer v2 AST-String)
+        if isinstance(program, str):
+            # Extract all identifiers
+            tokens = re.findall(r'[a-zA-Z_]\w*', program)
+            features['size'] = len(tokens)
+            for token in tokens:
+                features[token] += 1
+            return dict(features)
+            
         features = {'size': 0, 'recursion': 0, 'op_plus': 0, 'op_minus': 0, 'op_mult': 0}
         
         def traverse(node):
@@ -371,8 +391,11 @@ class MetaHeuristic:
         lr = self.weights.get('learning_rate', 0.1)
         
         # Increase weights for used features
+        # Increase weights for used features
         for feat, count in features.items():
-            if count > 0 and feat in self.weights:
+            if count > 0:
+                if feat not in self.weights:
+                    self.weights[feat] = 1.0
                 # Gradient ascent-ish
                 self.weights[feat] += lr * count
         
@@ -407,8 +430,11 @@ class MetaHeuristic:
         lr = base_lr * penalty_mult.get(failure_type, 0.1)
         
         # Decrease weights for features in failed programs
+        # Decrease weights for features in failed programs
         for feat, count in features.items():
-            if count > 0 and feat in self.weights and feat != 'learning_rate':
+            if count > 0 and feat != 'learning_rate':
+                if feat not in self.weights:
+                    self.weights[feat] = 1.0
                 self.weights[feat] = max(0.01, self.weights[feat] - lr * count)
         
         # Increase depth_penalty if failed program was deep
