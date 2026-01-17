@@ -852,10 +852,14 @@ class NeuroGeneticSynthesizer:
     _TERNARY_OPS = {'if_then_else'}
     _QUATERNARY_OPS = {'if_gt', 'if_lt'}
 
-    def __init__(self, neural_guide=None, pop_size=200, generations=20, islands=3, checkpoint_path=None, **kwargs):
-        """Backwards-compatible init that ignores legacy params but keeps new safe architecture."""
+    def __init__(self, neural_guide=None, pop_size=200, generations=20, islands=3, checkpoint_path=None, use_meta_heuristic=True, **kwargs):
+        """
+        Backwards-compatible init that ignores legacy params but keeps new safe architecture.
+        use_meta_heuristic: If False, meta-learning weights are ignored (Control group mode).
+        """
         self.library = LibraryManager()
         self.interpreter = SafeInterpreter(self.library.runtime_primitives)
+        self.use_meta_heuristic = use_meta_heuristic
         
         # [TRUE RSI] Meta-Reasoning Failure Analyzer
         from meta_heuristic import FailureAnalyzer
@@ -865,6 +869,8 @@ class NeuroGeneticSynthesizer:
         for name, node in self.library.primitives.items():
             self.library._compile_primitive_runtime(node, self.interpreter)
 
+    # ... (other methods unchanged) ...
+    
     def register_primitive(self, name: str, func: Callable):
         """Dynamic runtime registration of new primitives."""
         if self.interpreter and hasattr(self.interpreter, 'primitives'):
@@ -892,7 +898,8 @@ class NeuroGeneticSynthesizer:
         
         # [A] MULTIPLICATIVE MERGE: Library weights × Meta-learned weights
         from meta_heuristic import MetaHeuristic
-        meta_heuristic = MetaHeuristic()
+        # If Control Group (use_meta_heuristic=False), disable IO to prevent contamination
+        meta_heuristic = MetaHeuristic(no_io=not self.use_meta_heuristic)
         
         ops, lib_weights = self.library.get_weighted_ops()
         meta_weights_dict = meta_heuristic.get_op_weights(ops)
@@ -901,12 +908,17 @@ class NeuroGeneticSynthesizer:
         weights = []
         for i, op in enumerate(ops):
             lib_w = lib_weights[i]
-            meta_w = meta_weights_dict.get(op, 1.0)
+            # If meta-learning is disabled (Control Group), force meta_w to 1.0
+            if not self.use_meta_heuristic:
+                meta_w = 1.0
+            else:
+                meta_w = meta_weights_dict.get(op, 1.0)
+            
             final_w = lib_w * meta_w
             weights.append(max(0.01, final_w))  # Ensure non-zero
         
         # Store for later verification
-        self._current_meta_weights = meta_weights_dict
+        self._current_meta_weights = meta_weights_dict if self.use_meta_heuristic else {op: 1.0 for op in ops}
         self._current_merged_weights = dict(zip(ops, weights))
         
         # [TYPE-CONSTRAINT] Prune search space based on input/output types (Refined Instruction 3)

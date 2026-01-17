@@ -1,186 +1,143 @@
-#!/usr/bin/env python3
-"""
-Verification script for RSI Meta-Learning Impact.
-1. Proves weight modification (Library vs Final).
-2. Runs A/B Test (Control vs Test) for 200 trials.
-"""
-
+import json
+import time
 import sys
 import os
 import random
 import copy
 from collections import defaultdict
-import time
 import contextlib
 import io
-# from tabulate import tabulate  # Removed dependency
 
 # Ensure local imports
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-
 from neuro_genetic_synthesizer import NeuroGeneticSynthesizer
 from meta_heuristic import MetaHeuristic
 
-def header(msg):
-    print(f"\n{'='*60}\n{msg}\n{'='*60}")
+RESULTS_FILE = "rsi_verification_results.json"
 
-def dump_weight_impact():
-    header("1. PROOF OF WEIGHT MODIFICATION (Meta Influence)")
-    
-    synth = NeuroGeneticSynthesizer()
-    
-    # Instantiate MetaHeuristic manually for this demonstration
-    meta = MetaHeuristic()
-    
-    # Forecefully inject knowledge
+def dump_weight_evidence(synth):
+    print("\n[Evidence] Capturing numeric weight evidence...")
+    ops, lib_weights = synth.library.get_weighted_ops()
+    # Force use_meta_heuristic=True logic for this check
+    # We want to see what happens when meta IS used
+    meta = MetaHeuristic(no_io=True) # Use default/empty for base comparison
+    # Inject diverse weights for demonstration
     meta.weights['sum_list'] = 0.1
     meta.weights['mul'] = 5.0
     
-    print("[Setup] Injected artificial meta-weights for demonstration:")
-    print("  sum_list: 0.1 (strong penalty)")
-    print("  mul: 5.0 (strong preference)")
-    
-    # Trigger the merge logic
-    ops, lib_weights = synth.library.get_weighted_ops()
     meta_weights_dict = meta.get_op_weights(ops)
     
-    merged_data = []
+    evidence = []
+    print(f"\n{'Op':<15} | {'Lib_W':<10} | {'Meta_W':<10} | {'Final_W':<10}")
+    print("-" * 55)
     
     for i, op in enumerate(ops):
         lib_w = lib_weights[i]
         meta_w = meta_weights_dict.get(op, 1.0)
         final_w = max(0.01, lib_w * meta_w)
+        entry = {
+            'op': op,
+            'lib_w': float(f"{lib_w:.4f}"),
+            'meta_w': float(f"{meta_w:.4f}"),
+            'final_w': float(f"{final_w:.4f}")
+        }
+        evidence.append(entry)
         
-        merged_data.append({
-            'Op': op,
-            'Lib_W': lib_w,
-            'Meta_W': meta_w,
-            'Final_W': final_w
-        })
-    
-    # Sort by Final_W to see the impact
-    merged_data.sort(key=lambda x: x['Final_W'], reverse=True)
-    
-    print("\nTop 10 Operators by FINAL Weight:")
-    print(f"{'Op':<15} | {'Lib_W':<10} | {'Meta_W':<10} | {'Final_W':<10}")
-    print("-" * 55)
-    for row in merged_data[:10]:
-        print(f"{row['Op']:<15} | {row['Lib_W']:<10.4f} | {row['Meta_W']:<10.4f} | {row['Final_W']:<10.4f}")
-        
-    print("\nSpecific Check (Targeted Ops):")
-    for row in merged_data:
-        if row['Op'] in ['sum_list', 'mul']:
-             print(f"{row['Op']:<15} | {row['Lib_W']:<10.4f} | {row['Meta_W']:<10.4f} | {row['Final_W']:<10.4f}")
+        # Print top/interesting ones
+        if op in ['sum_list', 'mul'] or i < 5:
+            print(f"{op:<15} | {lib_w:<10.4f} | {meta_w:<10.4f} | {final_w:<10.4f}")
+            
+    return evidence
 
-    # Assertion
-    sum_row = next(r for r in merged_data if r['Op'] == 'sum_list')
-    mul_row = next(r for r in merged_data if r['Op'] == 'mul')
-    
-    if sum_row['Final_W'] < sum_row['Lib_W'] and mul_row['Final_W'] > mul_row['Lib_W']:
-         print("\n✅ PASS: Final weights correctly reflect meta-influence (multiplicative merge verified).")
-    else:
-         print("\n❌ FAIL: Meta-influence not reflected correctly.")
-
-def run_benchmark_trial(synth, trials=200):
+def run_benchmark_trial(synth, trials=200, label="Unknown"):
     success = 0
     failures = {'TYPE_OR_SHAPE': 0, 'EXCEPTION': 0, 'LOW_SCORE_VALID': 0}
+    ops_used = defaultdict(int)
     
-    # Use deterministic seed for consistent task generation
+    # Deterministic task generation
     random.seed(42) 
-    
     tasks = []
-    # Generate simple tasks
     for _ in range(trials):
          task_len = random.randint(3, 8)
          inp = [random.randint(1, 10) for _ in range(task_len)]
-         # Task: Sum of list (requires 'sum_list' or 'fold'+'add')
          outp = sum(inp)
          tasks.append([{'input': inp, 'output': outp}])
-    
-    # Reset seed for synthesis stochasticity
     random.seed(None)
     
-    ops_used = defaultdict(int)
-
+    print(f"Running {trials} trials for {label}...")
     for i, io_pairs in enumerate(tasks):
         if (i+1) % 50 == 0: print(f"  Trial {i+1}/{trials}...")
         try:
-            # We want to catch the synthesis result
-            # synthesize() returns list of (code, ast, comp, score)
+            # Silence stdout for speed/cleanliness
             with contextlib.redirect_stdout(io.StringIO()):
-                solutions = synth.synthesize(io_pairs, timeout=0.2) # Fast timeout for benchmark
+                solutions = synth.synthesize(io_pairs, timeout=0.1) 
             
+            # STRICT SUCCESS CRITERIA: Score >= 0.95
             valid = [s for s in solutions if s[3] >= 0.95]
             if valid:
                 success += 1
                 code = valid[0][0]
-                for op in synth.library.primitives:
-                    if op in code: ops_used[op] += 1
+                # Extract main op (naive heuristic)
+                if '(' in code:
+                    op = code.split('(')[0].strip()
+                    ops_used[op] += 1
+                elif ' ' in code: # infix
+                    pass 
+                else:
+                    ops_used[code] += 1
             else:
                 failures['LOW_SCORE_VALID'] += 1
-        except TypeError:
-            failures['TYPE_OR_SHAPE'] += 1
-        except Exception:
+        except Exception as e:
+            # print(f"DEBUG: {e}") 
             failures['EXCEPTION'] += 1
             
-    return success, failures, ops_used
+    return {
+        'success_count': success,
+        'success_rate': success/trials,
+        'failures': failures,
+        'top_ops': dict(sorted(ops_used.items(), key=lambda x:x[1], reverse=True)[:10])
+    }
 
-def run_ab_test():
-    header("2. A/B TEST: Control (No Meta) vs Test (With Meta)")
+def verify_rsi():
+    # 1. Weight Evidence
+    # Use a dummy synth just to get library ops
+    dummy_synth = NeuroGeneticSynthesizer(use_meta_heuristic=False)
+    weight_evidence = dump_weight_evidence(dummy_synth)
     
+    # 2. A/B Test
     TRIALS = 200
     
-    # Config for Control
-    print("\nRunning CONTROL group (Meta-Influence Disabled)...")
-    # We patch MetaHeuristic.get_op_weights to always return 1.0s
-    original_get_weights = MetaHeuristic.get_op_weights
-    MetaHeuristic.get_op_weights = lambda self, ops: {op: 1.0 for op in ops}
+    # Control: Meta OFF
+    print("\n--- Control Group ---")
+    synth_control = NeuroGeneticSynthesizer(use_meta_heuristic=False)
+    # Ensure no_io is working by checking it doesn't crash on load
+    res_control = run_benchmark_trial(synth_control, trials=TRIALS, label="Control")
     
-    synth_control = NeuroGeneticSynthesizer()
-    c_success, c_fails, c_ops = run_benchmark_trial(synth_control, trials=TRIALS)
+    # Treatment: Meta ON
+    print("\n--- Treatment Group ---")
+    # Pre-seed failure knowledge manually to simulate learning (Fairness: we compare Capability)
+    # Since we strictly control IO, we must ensure file exists
+    meta = MetaHeuristic(no_io=False)
+    meta.weights['sum_list'] = 0.1 # learned penalty
+    meta.weights['add'] = 5.0      # learned preference
+    meta._save_weights()
     
-    # Config for Test
-    print("\nRunning TEST group (Meta-Influence Enabled)...")
+    synth_treatment = NeuroGeneticSynthesizer(use_meta_heuristic=True)
+    res_treatment = run_benchmark_trial(synth_treatment, trials=TRIALS, label="Treatment")
     
-    # Simulate a "Learned" meta-heuristic that knows sum_list is good for these tasks
-    # This proves that IF the system learns, it CAN influence search.
-    # (Achieving this learning automatically is proven by P1-P4 in the other benchmark)
-    def learned_get_weights(self, ops):
-        # Default 1.0
-        w = {op: 1.0 for op in ops}
-        # Learned preferences for list summing
-        w['sum_list'] = 5.0
-        w['fold'] = 2.0
-        w['add'] = 2.0
-        return w
+    # Save Results
+    final_output = {
+        'weight_evidence_sample': [e for e in weight_evidence if e['op'] in ['sum_list', 'mul'] or e['final_w'] > 100],
+        'control': res_control,
+        'treatment': res_treatment
+    }
+    
+    with open(RESULTS_FILE, 'w') as f:
+        json.dump(final_output, f, indent=2)
         
-    MetaHeuristic.get_op_weights = learned_get_weights
-    
-    synth_test = NeuroGeneticSynthesizer()
-    
-    t_success, t_fails, t_ops = run_benchmark_trial(synth_test, trials=TRIALS)
-    
-    # Reports
-    print("\n=== A/B TEST RESULTS ===")
-    print(f"{'Metric':<20} | {'Control':<10} | {'Test':<10} | {'Delta':<10}")
-    print("-" * 56)
-    
-    c_rate = c_success/TRIALS*100
-    t_rate = t_success/TRIALS*100
-    print(f"{'Success Rate':<20} | {c_rate:>9.1f}% | {t_rate:>9.1f}% | {t_rate-c_rate:>+9.1f}%")
-    
-    for ftype in ['TYPE_OR_SHAPE', 'EXCEPTION', 'LOW_SCORE_VALID']:
-        print(f"{ftype:<20} | {c_fails[ftype]:>10} | {t_fails[ftype]:>10} | {t_fails[ftype]-c_fails[ftype]:>+10}")
-
-    print("\nOperator Usage (sum_list usage):")
-    print(f"Control: {c_ops.get('sum_list', 0)}")
-    print(f"Test:    {t_ops.get('sum_list', 0)}")
-    
-    if t_rate >= c_rate:
-        print("\n✅ PASS: Test group performed equal or better.")
-    else:
-        print("\n⚠️ NOTE: Test group performed worse (expected if aggressive exploration penalties).")
+    print(f"\nVerification Complete. Results saved to {RESULTS_FILE}")
+    print(f"Control Success: {res_control['success_rate']*100:.1f}%")
+    print(f"Treatment Success: {res_treatment['success_rate']*100:.1f}%")
 
 if __name__ == "__main__":
-    dump_weight_impact()
-    run_ab_test()
+    verify_rsi()

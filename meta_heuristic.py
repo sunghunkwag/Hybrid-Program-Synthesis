@@ -260,13 +260,19 @@ class MetaHeuristic:
         'learning_rate': 0.1
     }
     
-    def __init__(self):
-        self.weights = self._load_weights()
-        # Default weights if fresh
-        if not self.weights:
+    def __init__(self, load_path="rsi_meta_weights.json", no_io=False):
+        self.WEIGHTS_FILE = load_path
+        self.no_io = no_io
+        
+        if self.no_io:
             self.weights = dict(self.DEFAULT_WEIGHTS)
+        else:
+            self.weights = self._load_weights()
+            if not self.weights:
+                self.weights = dict(self.DEFAULT_WEIGHTS)
     
     def _load_weights(self) -> Dict[str, float]:
+        if self.no_io: return {}
         if os.path.exists(self.WEIGHTS_FILE):
             try:
                 with open(self.WEIGHTS_FILE, 'r') as f:
@@ -417,5 +423,18 @@ class MetaHeuristic:
                 if op not in self.failed_ops:
                     self.failed_ops[op] = {'TYPE_OR_SHAPE': 0, 'EXCEPTION': 0, 'LOW_SCORE_VALID': 0}
                 self.failed_ops[op][failure_type] += 1
+        
+        # Save updated weights to disk (Critical for Treatment group learning)
+        self._save_weights()
+
+    def _save_weights(self):
+        """Save weights to JSON file."""
+        if self.no_io: return
+            
+        try:
+            with open(self.WEIGHTS_FILE, 'w') as f:
+                json.dump(self.weights, f, indent=4)
+        except Exception as e:
+            print(f"[RSI-Meta] Failed to save weights: {e}")
 
 

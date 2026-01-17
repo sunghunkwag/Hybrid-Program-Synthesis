@@ -1,0 +1,40 @@
+{
+  "weight_evidence_sample": [
+    {
+      "op": "mul",
+      "lib_w": 1.0,
+      "meta_w": 5.0,
+      "final_w": 5.0
+    },
+    {
+      "op": "sum_list",
+      "lib_w": 1.0,
+      "meta_w": 0.1,
+      "final_w": 0.1
+    }
+  ],
+  "control": {
+    "success_count": 200,
+    "success_rate": 1.0,
+    "failures": {
+      "TYPE_OR_SHAPE": 0,
+      "EXCEPTION": 0,
+      "LOW_SCORE_VALID": 0
+    },
+    "top_ops": {
+      "sum_list": 200
+    }
+  },
+  "treatment": {
+    "success_count": 200,
+    "success_rate": 1.0,
+    "failures": {
+      "TYPE_OR_SHAPE": 0,
+      "EXCEPTION": 0,
+      "LOW_SCORE_VALID": 0
+    },
+    "top_ops": {
+      "sum_list": 200
+    }
+  }
+}
