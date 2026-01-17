@@ -16104,6 +16104,11 @@ class HRMSidecar:
                     name = f"concept_{self.concept_count}_{type_sig}"
                     final_code = f"def {name}(n):\n    return {code_str}"
                     print(f"  [INVENTION] {name}: {code_str} (Recursive Synthesis)")
+                    # [RSI] Library Learning: Extract reusable sub-concepts
+                    if self.synthesizer:
+                        ctx = self.synthesizer.library.primitives.copy() if self.synthesizer.library else {}
+                        self._extract_and_register_subtrees(code_str, ctx)
+
                     return [(final_code, (ast_obj, 0, 0))]
             else:
                 # [FIX] Route List/Matrix tasks to NeuroGeneticSynthesizer
@@ -16119,6 +16124,11 @@ class HRMSidecar:
                     # Wrap as function definition for consistency
                     final_code = f"def {name}(n):\n    return {code_str}"
                     print(f"  [INVENTION] {name}: {code_str} (NeuroGenetic Synthesis)")
+                    # [RSI] Library Learning: Extract reusable sub-concepts
+                    if self.synthesizer:
+                        ctx = self.synthesizer.library.primitives.copy() if self.synthesizer.library else {}
+                        self._extract_and_register_subtrees(code_str, ctx)
+                        
                     return [(final_code, (ast_obj, complexity, score))]
         
         # 0. Bezalel Engine (Universal Resonance) - Honest & Fast
