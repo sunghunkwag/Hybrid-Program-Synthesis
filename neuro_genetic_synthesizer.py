@@ -386,8 +386,8 @@ class LibraryManager:
             'add': (lambda a, b: a + b, 0),
             'sub': (lambda a, b: a - b, 0),
             'mul': (lambda a, b: a * b, 0),
-            'div': (lambda a, b: int(a / b) if b != 0 else 0, 0),
-            'mod': (lambda a, b: a % b if b != 0 else 0, 0),
+            'div': (lambda a, b: int(a / b) if b != 0 else (_raise(ZeroDivisionError("division by zero")), 0)[1], 0),
+            'mod': (lambda a, b: a % b if b != 0 else (_raise(ZeroDivisionError("modulo by zero")), 0)[1], 0),
             'neg': (lambda a: -a, 0),
             'abs_val': (lambda a: abs(a) if isinstance(a, (int, float)) else a, 0),
             'min_val': (lambda a, b: min(a, b), 0),
@@ -412,33 +412,33 @@ class LibraryManager:
             'if_lt': (lambda a, b, c, d: c if a < b else d, 0),
             
             # --- List/String Access ---
-            'len': (lambda x: len(x) if isinstance(x, (str, list, tuple)) else 0, 0),
-            'first': (lambda x: x[0] if isinstance(x, (list, tuple, str)) and len(x) > 0 else None, 0),
-            'last': (lambda x: x[-1] if isinstance(x, (list, tuple, str)) and len(x) > 0 else None, 0),
-            'get': (lambda lst, i: lst[int(i)] if isinstance(lst, (list, str)) and 0 <= int(i) < len(lst) else None, 0),
-            'tail': (lambda x: x[1:] if isinstance(x, (list, str)) and len(x) > 0 else ([] if isinstance(x, list) else ''), 0),
-            'init': (lambda x: x[:-1] if isinstance(x, (list, str)) and len(x) > 0 else ([] if isinstance(x, list) else ''), 0),
-            'reverse': (lambda x: x[::-1] if isinstance(x, (str, list)) else x, 0),
-            'is_empty': (lambda x: len(x) == 0 if isinstance(x, (list, str, tuple)) else True, 0),
+            'len': (lambda x: len(x) if isinstance(x, (str, list, tuple)) else (_raise(TypeError("len expects sequence")), 0)[1], 0),
+            'first': (lambda x: x[0] if isinstance(x, (list, tuple, str)) and len(x) > 0 else (_raise(TypeError("first expects non-empty seq")), None)[1], 0),
+            'last': (lambda x: x[-1] if isinstance(x, (list, tuple, str)) and len(x) > 0 else (_raise(TypeError("last expects non-empty seq")), None)[1], 0),
+            'get': (lambda lst, i: lst[int(i)] if isinstance(lst, (list, str)) and 0 <= int(i) < len(lst) else (_raise(TypeError("get expects seq and valid index")), None)[1], 0),
+            'tail': (lambda x: x[1:] if isinstance(x, (list, str)) and len(x) > 0 else (_raise(TypeError("tail expects non-empty seq")), [] if isinstance(x, list) else '')[1], 0),
+            'init': (lambda x: x[:-1] if isinstance(x, (list, str)) and len(x) > 0 else (_raise(TypeError("init expects non-empty seq")), [] if isinstance(x, list) else '')[1], 0),
+            'reverse': (lambda x: x[::-1] if isinstance(x, (str, list)) else (_raise(TypeError("reverse expects seq")), x)[1], 0),
+            'is_empty': (lambda x: len(x) == 0 if isinstance(x, (list, str, tuple)) else (_raise(TypeError("is_empty expects seq")), True)[1], 0),
             
             # --- List Construction ---
-            'cons': (lambda x, lst: [x] + lst if isinstance(lst, list) else [x], 0),
-            'snoc': (lambda lst, x: lst + [x] if isinstance(lst, list) else [x], 0),
-            'concat': (lambda a, b: a + b if isinstance(a, (list, str)) and isinstance(b, (list, str)) else a, 0),
-            'take': (lambda n, lst: lst[:min(int(n), len(lst))] if isinstance(lst, (list, str)) else lst, 0),
-            'drop': (lambda n, lst: lst[min(int(n), len(lst)):] if isinstance(lst, (list, str)) else lst, 0),
-            'slice_list': (lambda lst, s, e: lst[int(s):int(e)] if isinstance(lst, (list, str)) else lst, 0),
+            'cons': (lambda x, lst: [x] + lst if isinstance(lst, list) else (_raise(TypeError("cons expects list tail")), [x])[1], 0),
+            'snoc': (lambda lst, x: lst + [x] if isinstance(lst, list) else (_raise(TypeError("snoc expects list head")), [x])[1], 0),
+            'concat': (lambda a, b: a + b if isinstance(a, (list, str)) and isinstance(b, (list, str)) and type(a) == type(b) else (_raise(TypeError("concat expects same-type sequences")), a)[1], 0),
+            'take': (lambda n, lst: lst[:min(int(n), len(lst))] if isinstance(lst, (list, str)) else (_raise(TypeError("take expects seq")), lst)[1], 0),
+            'drop': (lambda n, lst: lst[min(int(n), len(lst)):] if isinstance(lst, (list, str)) else (_raise(TypeError("drop expects seq")), lst)[1], 0),
+            'slice_list': (lambda lst, s, e: lst[int(s):int(e)] if isinstance(lst, (list, str)) else (_raise(TypeError("slice expects seq")), lst)[1], 0),
             'singleton': (lambda x: [x], 0),
             'range_list': (lambda n: list(range(min(max(0, int(n)), 100))), 0),  # Bounded to 100
             
             # --- List Transformation (Bounded Iteration - Max 100) ---
-            'map_double': (lambda lst: [x * 2 for x in lst[:100]] if isinstance(lst, list) else lst, 0),
-            'map_square': (lambda lst: [x * x for x in lst[:100]] if isinstance(lst, list) else lst, 0),
-            'map_negate': (lambda lst: [-x for x in lst[:100]] if isinstance(lst, list) else lst, 0),
-            'filter_positive': (lambda lst: [x for x in lst[:100] if x > 0] if isinstance(lst, list) else lst, 0),
-            'filter_negative': (lambda lst: [x for x in lst[:100] if x < 0] if isinstance(lst, list) else lst, 0),
-            'filter_even': (lambda lst: [x for x in lst[:100] if x % 2 == 0] if isinstance(lst, list) else lst, 0),
-            'filter_odd': (lambda lst: [x for x in lst[:100] if x % 2 == 1] if isinstance(lst, list) else lst, 0),
+            'map_double': (lambda lst: [x * 2 for x in lst[:100]] if isinstance(lst, list) else (_raise(TypeError("map_double expects list")), lst)[1], 0),
+            'map_square': (lambda lst: [x * x for x in lst[:100]] if isinstance(lst, list) else (_raise(TypeError("map_square expects list")), lst)[1], 0),
+            'map_negate': (lambda lst: [-x for x in lst[:100]] if isinstance(lst, list) else (_raise(TypeError("map_negate expects list")), lst)[1], 0),
+            'filter_positive': (lambda lst: [x for x in lst[:100] if x > 0] if isinstance(lst, list) else (_raise(TypeError("filter_pos expects list")), lst)[1], 0),
+            'filter_negative': (lambda lst: [x for x in lst[:100] if x < 0] if isinstance(lst, list) else (_raise(TypeError("filter_neg expects list")), lst)[1], 0),
+            'filter_even': (lambda lst: [x for x in lst[:100] if x % 2 == 0] if isinstance(lst, list) else (_raise(TypeError("filter_even expects list")), lst)[1], 0),
+            'filter_odd': (lambda lst: [x for x in lst[:100] if x % 2 == 1] if isinstance(lst, list) else (_raise(TypeError("filter_odd expects list")), lst)[1], 0),
             
             # --- Aggregation (Bounded - Max 100) ---
             'sum_list': (lambda lst: sum(lst[:100]) if isinstance(lst, list) else (_raise(TypeError("sum_list expects list")), 0)[1], 0),
@@ -450,13 +450,13 @@ class LibraryManager:
             # --- Matrix (2D List) Operations ---
             'flatten': (lambda m: self._safe_flatten(m), 0),
             'matrix_sum': (lambda m: self._safe_matrix_sum(m), 0),
-            'row_sums': (lambda m: [sum(row[:100]) for row in m[:100]] if self._is_matrix(m) else [], 0),
+            'row_sums': (lambda m: [sum(row[:100]) for row in m[:100]] if self._is_matrix(m) else (_raise(TypeError("row_sums expects matrix")), [])[1], 0),
             'col_sums': (lambda m: self._safe_col_sums(m), 0),
             'matrix_shape': (lambda m: (len(m), len(m[0]) if m and isinstance(m[0], list) else 0) if isinstance(m, list) else (0, 0), 0),
             
             # --- Sorting (Built-in, bounded) ---
-            'sort_asc': (lambda lst: sorted(lst[:100]) if isinstance(lst, list) else lst, 0),
-            'sort_desc': (lambda lst: sorted(lst[:100], reverse=True) if isinstance(lst, list) else lst, 0),
+            'sort_asc': (lambda lst: sorted(lst[:100]) if isinstance(lst, list) else (_raise(TypeError("sort expects list")), lst)[1], 0),
+            'sort_desc': (lambda lst: sorted(lst[:100], reverse=True) if isinstance(lst, list) else (_raise(TypeError("sort expects list")), lst)[1], 0),
             
             # --- Search ---
             'elem_in': (lambda x, lst: x in lst if isinstance(lst, (list, str)) else False, 0),
