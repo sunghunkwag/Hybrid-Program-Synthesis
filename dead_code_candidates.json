@@ -1,0 +1,58 @@
+[
+  {
+    "symbol": "RuntimeGuard",
+    "file": "Systemtest.py",
+    "line_start": 4959,
+    "line_end": 4960,
+    "reason": "always raises; legacy_* wrappers invoke it unconditionally",
+    "risk": "medium"
+  },
+  {
+    "symbol": "legacy_evaluate_expr",
+    "file": "Systemtest.py",
+    "line_start": 4962,
+    "line_end": 4964,
+    "reason": "always raises RuntimeGuard",
+    "risk": "medium"
+  },
+  {
+    "symbol": "legacy_run",
+    "file": "Systemtest.py",
+    "line_start": 4973,
+    "line_end": 4974,
+    "reason": "always raises RuntimeGuard",
+    "risk": "medium"
+  },
+  {
+    "symbol": "legacy_run_algo",
+    "file": "Systemtest.py",
+    "line_start": 4976,
+    "line_end": 4983,
+    "reason": "always raises RuntimeGuard",
+    "risk": "medium"
+  },
+  {
+    "symbol": "legacy_run_engine",
+    "file": "Systemtest.py",
+    "line_start": 4986,
+    "line_end": 4987,
+    "reason": "always raises RuntimeGuard",
+    "risk": "medium"
+  },
+  {
+    "symbol": "legacy_load_module",
+    "file": "Systemtest.py",
+    "line_start": 4989,
+    "line_end": 4990,
+    "reason": "always raises RuntimeGuard",
+    "risk": "medium"
+  },
+  {
+    "symbol": "run_hrm_life_v2",
+    "file": "systemtest/legacy/hrm_life_v2.py",
+    "line_start": 7,
+    "line_end": 18,
+    "reason": "not referenced by any entrypoint or subcommand",
+    "risk": "low"
+  }
+]

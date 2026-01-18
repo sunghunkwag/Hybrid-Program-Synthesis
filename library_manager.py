@@ -115,7 +115,7 @@ class LibraryManager:
     - JSON persistence (no source injection)
     """
     
-    REGISTRY_PATH = "rsi_library_registry.json"
+    REGISTRY_PATH = "rsi_primitive_registry.json"
     WEIGHT_DECAY = 0.95  # Decay factor per cycle for unused primitives
     WEIGHT_BOOST = 1.5   # Boost factor when used successfully
     
@@ -417,11 +417,16 @@ class LibraryManager:
     
     def load(self) -> bool:
         """Load library from JSON registry."""
-        if not os.path.exists(self.registry_path):
-            return False
+        registry_path = self.registry_path
+        fallback_path = "rsi_library_registry.json"
+        if not os.path.exists(registry_path):
+            if registry_path == self.REGISTRY_PATH and os.path.exists(fallback_path):
+                registry_path = fallback_path
+            else:
+                return False
         
         try:
-            with open(self.registry_path, 'r') as f:
+            with open(registry_path, 'r') as f:
                 registry = json.load(f)
             
             version = registry.get('version', '1.0')
@@ -432,7 +437,10 @@ class LibraryManager:
                 self.primitives[name] = prim
             self._rebuild_indices()
             
-            print(f"[LibraryManager] Loaded {len(self.primitives)} primitives (v{version})")
+            if registry_path != self.registry_path:
+                print(f"[LibraryManager] Loaded {len(self.primitives)} primitives from legacy registry {registry_path} (v{version})")
+            else:
+                print(f"[LibraryManager] Loaded {len(self.primitives)} primitives (v{version})")
             return True
             
         except Exception as e:

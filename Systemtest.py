@@ -37,6 +37,31 @@ try:
 except ImportError:
     np = None
 
+# Single source of truth for process-isolated execution.
+from watchdog_executor import WatchdogExecutor
+from systemtest.validators import (
+    SAFE_BUILTINS,
+    SAFE_VARS,
+    program_limits_ok,
+    validate_algo_program,
+    validate_code,
+    validate_expr,
+    validate_program,
+)
+from systemtest.execution import (
+    build_watchdog_callable,
+    build_watchdog_callable_from_lambda,
+    extract_function_name,
+)
+
+TRACE_EXEC = os.getenv("TRACE_EXEC") == "1"
+
+
+def trace_exec(message: str) -> None:
+    if TRACE_EXEC:
+        print(f"[TRACE_EXEC] {message}")
+
+
 def seed_everything(seed: int) -> None:
     """Seed Python, NumPy, and Torch (if available) RNGs."""
     random.seed(seed)
@@ -63,106 +88,6 @@ except ImportError as e:
     LibraryManager = None
     HAS_HYBRID_SYNTH = False
     print("[Systemtest] Warning: NeuroGeneticSynthesizer module not found. Skipping RSI features.")
-
-# =============================================================================
-# WATCHDOG EXECUTOR - Process-Isolated Code Execution for Safe RSI
-# Uses multiprocessing for TRUE isolation, not language restriction.
-# =============================================================================
-class WatchdogExecutor:
-    """
-    Executes untrusted code in an isolated subprocess with timeout protection.
-    
-    The "Koala Watchdog" pattern - main process is protected from crashes,
-    infinite loops, and malicious code because execution happens in a 
-    completely separate process.
-    
-    Note: This provides PROCESS isolation, not LANGUAGE restriction.
-    The child process has full exec() capabilities.
-    """
-    
-    DEFAULT_TIMEOUT = 2.0
-    
-    def __init__(self, timeout: float = DEFAULT_TIMEOUT):
-        self.timeout = timeout
-    
-    @staticmethod
-    def _target_runner(code: str, return_dict: dict) -> None:
-        """Run inside child process - isolated from main."""
-        import io
-        import sys
-        import traceback
-        
-        captured_stdout = io.StringIO()
-        captured_stderr = io.StringIO()
-        original_stdout = sys.stdout
-        original_stderr = sys.stderr
-        
-        try:
-            sys.stdout = captured_stdout
-            sys.stderr = captured_stderr
-            local_scope = {}
-            global_scope = {'__builtins__': __builtins__, '__name__': '__watchdog_child__'}
-            
-            # UNRESTRICTED EXECUTION - process isolation provides safety
-            exec(code, global_scope, local_scope)
-            
-            result = None
-            if 'solve' in local_scope:
-                result = local_scope['solve']()
-            elif 'main' in local_scope:
-                result = local_scope['main']()
-            elif 'result' in local_scope:
-                result = local_scope['result']
-            
-            return_dict['success'] = True
-            return_dict['result'] = result
-            return_dict['output'] = captured_stdout.getvalue()
-            return_dict['stderr'] = captured_stderr.getvalue()
-            
-        except Exception:
-            return_dict['success'] = False
-            return_dict['error'] = traceback.format_exc()
-            return_dict['output'] = captured_stdout.getvalue()
-            return_dict['stderr'] = captured_stderr.getvalue()
-        finally:
-            sys.stdout = original_stdout
-            sys.stderr = original_stderr
-    
-    def run_safe(self, code: str, timeout: float = None) -> Dict[str, Any]:
-        """Execute code in isolated subprocess with timeout protection."""
-        timeout = timeout or self.timeout
-        
-        with mp.Manager() as manager:
-            return_dict = manager.dict()
-            return_dict['success'] = False
-            return_dict['error'] = 'Unknown fatal error'
-            return_dict['output'] = ''
-            return_dict['result'] = None
-            return_dict['stderr'] = ''
-            
-            process = mp.Process(target=self._target_runner, args=(code, return_dict))
-            process.start()
-            process.join(timeout)
-            
-            if process.is_alive():
-                process.terminate()
-                process.join(0.5)
-                if process.is_alive():
-                    process.kill()
-                    process.join()
-                return {
-                    'success': False,
-                    'error': '🐨 Koala Watchdog: Process killed due to timeout (Infinite Loop detected)',
-                    'output': '(Terminated)',
-                    'stderr': '(Terminated)',
-                    'result': None,
-                    'killed': True,
-                }
-            
-            result = dict(return_dict)
-            result['killed'] = False
-            return result
-
 
 # ==============================================================================
 # Modular Synthesis Package Integration
@@ -3966,39 +3891,67 @@ class InventionEvaluator:
         except Exception:
             return {"nodes": 0}
 
+    @staticmethod
+    def _task_payload(task: InventionTask) -> Dict[str, Any]:
+        return {
+            "kind": task.kind,
+            "input": task.input,
+            "expected": task.expected,
+            "hint": task.hint,
+            "descriptor": task.descriptor,
+        }
+
+    @staticmethod
+    def _wrap_candidate_code(code: str, task_payload: Dict[str, Any]) -> str:
+        normalized = textwrap.dedent(code).strip()
+        lines = [
+            "from types import SimpleNamespace",
+            "",
+            normalized,
+            "",
+            f"task = SimpleNamespace(**{task_payload!r})",
+            "_solve = locals().get(\"solve\")",
+            "if _solve:",
+            "    result = _solve(task)",
+            "else:",
+            "    result = None",
+            "if \"solve\" in locals():",
+            "    del solve",
+            "if \"main\" in locals():",
+            "    del main",
+        ]
+        return "\n".join(lines)
+
     def _run_in_subprocess(self, code: str, task: InventionTask, timeout: float) -> Tuple[bool, str]:
-        # Direct execution instead of subprocess (Windows multiprocessing is too slow)
-        try:
-            namespace = {'task': task}
-            exec(code, namespace)
-            
-            if 'solve' in namespace:
-                result = namespace['solve'](task)
-                success = (result == task.expected)
-                if success:
-                    print(f"  [EVAL] SUCCESS: {task.kind}")
-                return (success, f"Result: {result}, Expected: {task.expected}")
-            else:
-                return (False, "No 'solve' function defined")
-        except Exception as e:
-            return (False, str(e)[:100])
+        watchdog = WatchdogExecutor(timeout=timeout)
+        wrapper = self._wrap_candidate_code(code, self._task_payload(task))
+        result = watchdog.run_safe(wrapper)
+        if result.get("killed"):
+            return (False, "Watchdog timeout")
+        if not result.get("success"):
+            return (False, result.get("error", "Execution failed")[:100])
+        value = result.get("result")
+        success = (value == task.expected)
+        if success:
+            print(f"  [EVAL] SUCCESS: {task.kind}")
+        return (success, f"Result: {value}, Expected: {task.expected}")
 
 
     @staticmethod
     def _evaluate_runner(queue: mp.Queue, code: str, task: InventionTask) -> None:
         try:
-            # Create isolated namespace for execution
-            namespace = {'task': task}
-            exec(code, namespace)
-            
-            # Try to find and call 'solve' function
-            if 'solve' in namespace:
-                result = namespace['solve'](task)
-                success = (result == task.expected)
-                queue.put((success, f"Result: {result}, Expected: {task.expected}"))
-            else:
-                # No solve function, check for direct return
-                queue.put((False, "No 'solve' function defined"))
+            watchdog = WatchdogExecutor(timeout=2.0)
+            wrapper = InventionEvaluator._wrap_candidate_code(code, InventionEvaluator._task_payload(task))
+            result = watchdog.run_safe(wrapper)
+            if result.get("killed"):
+                queue.put((False, "Watchdog timeout"))
+                return
+            if not result.get("success"):
+                queue.put((False, result.get("error", "Execution failed")[:100]))
+                return
+            value = result.get("result")
+            success = (value == task.expected)
+            queue.put((success, f"Result: {value}, Expected: {task.expected}"))
         except Exception:
             queue.put((False, traceback.format_exc()))
 
@@ -4624,17 +4577,10 @@ class NeuroGeneticSearcher(Searcher):
             import re
             # archive.subroutine_pool is typically a list of code strings
             for snippet in archive.subroutine_pool:
-                 match = re.search(r'def\s+(\w+)\s*\(', snippet)
-                 if match:
-                     name = match.group(1)
-                     # Only register if new
-                     if name not in self.synthesizer.ops:
-                         try:
-                             l = {}
-                             exec(snippet, {}, l)
-                             if name in l:
-                                 self.synthesizer.register_primitive(name, l[name])
-                         except: pass
+                    name = extract_function_name(snippet)
+                    if name and name not in self.synthesizer.ops:
+                        wrapper = build_watchdog_callable(snippet, name, timeout=2.0)
+                        self.synthesizer.register_primitive(name, wrapper)
                          
         # Synthesize!
         # This is where the heavy computation happens (Neural + Genetic)
@@ -4830,20 +4776,6 @@ SAFE_FUNCS: Dict[str, Callable] = {
 GRAMMAR_PROBS: Dict[str, float] = {k: 1.0 for k in SAFE_FUNCS}
 GRAMMAR_PROBS.update({"binop": 2.0, "call": 15.0, "const": 1.0, "var": 2.0})
 
-SAFE_BUILTINS = {
-    "abs": abs,
-    "min": min,
-    "max": max,
-    "float": float,
-    "int": int,
-    "len": len,
-    "range": range,
-    "list": list,
-    "sorted": sorted,
-    "reversed": reversed,
-    "sum": sum,
-}
-
 # ---------------------------
 # Algo-mode safe primitives
 # ---------------------------
@@ -4956,7 +4888,6 @@ SAFE_ALGO_FUNCS: Dict[str, Callable] = {
     "int": int,
 }
 
-SAFE_VARS = {"x"} | {f"v{i}" for i in range(10)}
 
 
 # grid helpers (ARC-like)
@@ -5022,338 +4953,6 @@ class StepLimitTransformer(ast.NodeTransformer):
         return node
 
 
-class CodeValidator(ast.NodeVisitor):
-    """
-    Allow a safe subset of Python: assignments, flow control, simple expressions, calls to safe names.
-    Forbid imports, attribute access, comprehensions, lambdas, etc.
-    """
-
-    _allowed = [
-        ast.Module,
-        ast.FunctionDef,
-        ast.arguments,
-        ast.arg,
-        ast.Return,
-        ast.Assign,
-        ast.AnnAssign,
-        ast.AugAssign,
-        ast.Name,
-        ast.Constant,
-        ast.Expr,
-        ast.If,
-        ast.While,
-        ast.For,
-        ast.Break,
-        ast.Continue,
-        ast.BinOp,
-        ast.UnaryOp,
-        ast.Compare,
-        ast.Call,
-        ast.List,
-        ast.Tuple,  # critical for tuple-assign (swap)
-        ast.Dict,
-        ast.Set,
-        ast.ListComp,
-        ast.SetComp,
-        ast.DictComp,
-        ast.GeneratorExp,
-        ast.Attribute,
-        ast.Subscript,
-        ast.Slice,
-        ast.Load,
-        ast.Store,
-        ast.IfExp,
-        ast.operator,
-        ast.boolop,
-        ast.unaryop,
-        ast.cmpop,
-    ]
-    if hasattr(ast, "Index"):
-        _allowed.append(ast.Index)
-
-    ALLOWED = tuple(_allowed)
-
-    def __init__(self):
-        self.ok, self.err = (True, None)
-
-    def visit(self, node):
-        if not isinstance(node, self.ALLOWED):
-            self.ok, self.err = (False, f"Forbidden: {type(node).__name__}")
-            return
-        if isinstance(node, ast.Name):
-            if node.id.startswith("__") or node.id in ("open", "eval", "exec", "compile", "__import__", "globals", "locals"):
-                self.ok, self.err = (False, f"Forbidden name: {node.id}")
-                return
-        if isinstance(node, ast.Attribute):
-            if node.attr.startswith("__"):
-                self.ok, self.err = (False, f"Forbidden attribute: {node.attr}")
-                return
-        if isinstance(node, ast.Call):
-            # forbid attribute calls (e.g., os.system)
-            if not isinstance(node.func, (ast.Name, ast.Attribute)):
-                self.ok, self.err = (False, "Forbidden call form (non-Name/Attribute callee)")
-                return
-        if isinstance(node, ast.Subscript):
-            if isinstance(node.value, ast.Name) and node.value.id in SAFE_BUILTINS:
-                self.ok, self.err = (False, "Forbidden subscript on builtin")
-                return
-        super().generic_visit(node)
-
-def validate_code(code: str) -> Tuple[bool, str]:
-    try:
-        tree = ast.parse(code)
-        v = CodeValidator()
-        v.visit(tree)
-        return (v.ok, v.err or "")
-    except Exception as e:
-        return (False, str(e))
-
-
-class ProgramValidator(ast.NodeVisitor):
-    """Strict program-mode validator: Assign/If/Return only, no loops or attributes."""
-
-    _allowed = [
-        ast.Module,
-        ast.FunctionDef,
-        ast.arguments,
-        ast.arg,
-        ast.Return,
-        ast.Assign,
-        ast.Name,
-        ast.Constant,
-        ast.Expr,
-        ast.If,
-        ast.BinOp,
-        ast.UnaryOp,
-        ast.Compare,
-        ast.Call,
-        ast.List,
-        ast.Tuple,
-        ast.Dict,
-        ast.Set,
-        ast.ListComp,
-        ast.SetComp,
-        ast.DictComp,
-        ast.GeneratorExp,
-        ast.Attribute,
-        ast.Subscript,
-        ast.Slice,
-        ast.Load,
-        ast.Store,
-        ast.IfExp,
-        ast.operator,
-        ast.boolop,
-        ast.unaryop,
-        ast.cmpop,
-    ]
-    if hasattr(ast, "Index"):
-        _allowed.append(ast.Index)
-
-    ALLOWED = tuple(_allowed)
-
-    def __init__(self):
-        self.ok, self.err = (True, None)
-
-    def visit(self, node):
-        if not isinstance(node, self.ALLOWED):
-            self.ok, self.err = (False, f"Forbidden program node: {type(node).__name__}")
-            return
-        if isinstance(node, ast.Name):
-            if node.id.startswith("__") or node.id in ("open", "eval", "exec", "compile", "__import__", "globals", "locals"):
-                self.ok, self.err = (False, f"Forbidden name: {node.id}")
-                return
-        if isinstance(node, ast.Attribute):
-            if node.attr.startswith("__"):
-                self.ok, self.err = (False, f"Forbidden attribute: {node.attr}")
-                return
-        if isinstance(node, ast.Call):
-            if not isinstance(node.func, (ast.Name, ast.Attribute)):
-                self.ok, self.err = (False, "Forbidden call form (non-Name/Attribute callee)")
-                return
-        if isinstance(node, ast.Subscript):
-            if isinstance(node.value, ast.Name) and node.value.id in SAFE_BUILTINS:
-                self.ok, self.err = (False, "Forbidden subscript on builtin")
-                return
-        super().generic_visit(node)
-
-
-def validate_program(code: str) -> Tuple[bool, str]:
-    try:
-        tree = ast.parse(code)
-        v = ProgramValidator()
-        v.visit(tree)
-        return (v.ok, v.err or "")
-    except Exception as e:
-        return (False, str(e))
-
-
-class AlgoProgramValidator(ast.NodeVisitor):
-    """Algo-mode validator with bounded structure and constrained attribute access."""
-
-    _allowed = [
-        ast.Module,
-        ast.FunctionDef,
-        ast.arguments,
-        ast.arg,
-        ast.Return,
-        ast.Assign,
-        ast.Name,
-        ast.Constant,
-        ast.Expr,
-        ast.If,
-        ast.For,
-        ast.While,
-        ast.BinOp,
-        ast.UnaryOp,
-        ast.Compare,
-        ast.BoolOp,
-        ast.IfExp,
-        ast.Call,
-        ast.List,
-        ast.Tuple,
-        ast.Dict,
-        ast.Set,
-        ast.ListComp,
-        ast.SetComp,
-        ast.DictComp,
-        ast.GeneratorExp,
-        ast.Attribute,
-        ast.Subscript,
-        ast.Load,
-        ast.Store,
-        ast.operator,
-        ast.boolop,
-        ast.unaryop,
-        ast.cmpop,
-    ]
-    if hasattr(ast, "Index"):
-        _allowed.append(ast.Index)
-
-    ALLOWED = tuple(_allowed)
-
-    def __init__(self):
-        self.ok, self.err = (True, None)
-
-    def visit(self, node):
-        if not isinstance(node, self.ALLOWED):
-            self.ok, self.err = (False, f"Forbidden: {type(node).__name__}")
-            return
-        if isinstance(node, ast.Attribute):
-            if node.attr.startswith("__"):
-                self.ok, self.err = (False, f"Forbidden attribute: {node.attr}")
-                return
-        if isinstance(node, ast.Name):
-            if node.id.startswith("__") or node.id in ("open", "eval", "exec", "compile", "__import__", "globals", "locals"):
-                self.ok, self.err = (False, f"Forbidden name: {node.id}")
-                return
-        if isinstance(node, ast.Call):
-            if not isinstance(node.func, (ast.Name, ast.Attribute)):
-                self.ok, self.err = (False, "Forbidden call form (non-Name/Attribute callee)")
-                return
-        super().generic_visit(node)
-
-
-def algo_program_limits_ok(
-    code: str,
-    max_nodes: int = 420,
-    max_depth: int = 32,
-    max_funcs: int = 8,
-    max_locals: int = 48,
-    max_consts: int = 128,
-    max_subscripts: int = 64,
-) -> bool:
-    try:
-        tree = ast.parse(code)
-    except Exception:
-        return False
-    nodes = sum(1 for _ in ast.walk(tree))
-    depth = ast_depth(code)
-    funcs = sum(1 for n in ast.walk(tree) if isinstance(n, ast.FunctionDef))
-    locals_set = {n.id for n in ast.walk(tree) if isinstance(n, ast.Name)}
-    consts = sum(1 for n in ast.walk(tree) if isinstance(n, ast.Constant))
-    subs = sum(1 for n in ast.walk(tree) if isinstance(n, ast.Subscript))
-    return (
-        nodes <= max_nodes
-        and depth <= max_depth
-        and funcs <= max_funcs
-        and len(locals_set) <= max_locals
-        and consts <= max_consts
-        and subs <= max_subscripts
-    )
-
-
-def validate_algo_program(code: str) -> Tuple[bool, str]:
-    try:
-        tree = ast.parse(code)
-        v = AlgoProgramValidator()
-        v.visit(tree)
-        if not v.ok:
-            return (False, v.err or "")
-        if not algo_program_limits_ok(code):
-            return (False, "algo_program_limits")
-        return (True, "")
-    except Exception as e:
-        return (False, str(e))
-
-
-class ExprValidator(ast.NodeVisitor):
-    """Validate a single expression (mode='eval') allowing only safe names and safe call forms."""
-    ALLOWED = (
-        ast.Expression,
-        ast.BinOp, ast.UnaryOp, ast.BoolOp, ast.Compare, ast.IfExp,
-        ast.Call,
-        ast.Attribute,
-        ast.Name, ast.Load,
-        ast.Constant,
-        ast.List, ast.Tuple, ast.Dict,
-        ast.Set,
-        ast.ListComp, ast.SetComp, ast.DictComp, ast.GeneratorExp,
-        ast.Subscript, ast.Slice,
-        ast.operator, ast.unaryop, ast.boolop, ast.cmpop,
-    )
-
-    def __init__(self, allowed_names: Set[str]):
-        self.allowed_names = allowed_names
-        self.ok = True
-        self.err: Optional[str] = None
-
-    def visit(self, node):
-        if not isinstance(node, self.ALLOWED):
-            self.ok, self.err = (False, f"Forbidden expr node: {type(node).__name__}")
-            return
-        if isinstance(node, ast.Name):
-            if node.id.startswith("__") or node.id in ("open", "eval", "exec", "compile", "__import__", "globals", "locals"):
-                self.ok, self.err = (False, f"Forbidden name: {node.id}")
-                return
-            if node.id not in self.allowed_names:
-                self.ok, self.err = (False, f"Unknown name: {node.id}")
-                return
-        if isinstance(node, ast.Attribute):
-            if node.attr.startswith("__"):
-                self.ok, self.err = (False, f"Forbidden attribute: {node.attr}")
-                return
-        if isinstance(node, ast.Call):
-            if not isinstance(node.func, (ast.Name, ast.Attribute)):
-                self.ok, self.err = (False, "Forbidden call form (non-Name/Attribute callee)")
-                return
-        if isinstance(node, ast.Subscript):
-            if isinstance(node.value, ast.Name) and node.value.id in SAFE_BUILTINS:
-                self.ok, self.err = (False, "Forbidden subscript on builtin")
-                return
-        super().generic_visit(node)
-
-def validate_expr(expr: str, extra: Optional[Set[str]] = None) -> Tuple[bool, str]:
-    """PHASE A: validate expression with safe names only."""
-    try:
-        extra = extra or set()
-        allowed = set(SAFE_FUNCS.keys()) | set(SAFE_BUILTINS.keys()) | set(SAFE_VARS) | set(extra)
-        tree = ast.parse(expr, mode="eval")
-        v = ExprValidator(allowed)
-        v.visit(tree)
-        return (v.ok, v.err or "")
-    except Exception as e:
-        return (False, str(e))
-
 # Strict Security Barrier
 def RuntimeGuard(func_name: str):
     raise RuntimeError(f"EXEC BANNED: {func_name} is disabled by strictly honest security policy.")
@@ -5368,32 +4967,6 @@ def node_count(code: str) -> int:
         return sum(1 for _ in ast.walk(ast.parse(code)))
     except Exception:
         return 999
-
-def ast_depth(code: str) -> int:
-    try:
-        tree = ast.parse(code)
-    except Exception:
-        return 0
-    max_depth = 0
-    stack = [(tree, 1)]
-    while stack:
-        node, depth = stack.pop()
-        max_depth = max(max_depth, depth)
-        for child in ast.iter_child_nodes(node):
-            stack.append((child, depth + 1))
-    return max_depth
-
-
-def program_limits_ok(code: str, max_nodes: int = 200, max_depth: int = 20, max_locals: int = 16) -> bool:
-    try:
-        tree = ast.parse(code)
-    except Exception:
-        return False
-    nodes = sum(1 for _ in ast.walk(tree))
-    depth = ast_depth(code)
-    locals_set = {n.id for n in ast.walk(tree) if isinstance(n, ast.Name)}
-    return nodes <= max_nodes and depth <= max_depth and len(locals_set) <= max_locals
-
 
 def legacy_run(code: str, x: Any, timeout_steps: int = 1000, extra_env: Optional[Dict[str, Any]] = None) -> Any:
     RuntimeGuard("legacy_run")
@@ -7085,7 +6658,7 @@ class FunctionLibrary:
             sub_expr = _to_src(sub)
             if node_count(sub_expr) < 3:
                 return None
-            ok, _ = validate_expr(sub_expr, extra=set(self.funcs.keys()))
+            ok, _ = validate_expr(sub_expr, SAFE_FUNCS, SAFE_BUILTINS, SAFE_VARS, extra=set(self.funcs.keys()))
             if not ok:
                 return None
             name = f"h{len(self.funcs) + 1}"
@@ -7102,7 +6675,7 @@ class FunctionLibrary:
         try:
             call = f"{fn.name}(x)"
             new = expr.replace("x", call, 1) if rng.random() < 0.5 else f"({expr}+{call})"
-            ok, _ = validate_expr(new, extra=set(self.funcs.keys()))
+            ok, _ = validate_expr(new, SAFE_FUNCS, SAFE_BUILTINS, SAFE_VARS, extra=set(self.funcs.keys()))
             return (new, fn.name) if ok else (expr, None)
         except Exception:
             return (expr, None)
@@ -9736,8 +9309,8 @@ def run_rsi_loop(
 
 def cmd_selftest(args):
     print("[selftest] Validating...")
-    assert validate_expr("sin(x) + x*x")[0]
-    assert not validate_expr("__import__('os')")[0]
+    assert validate_expr("sin(x) + x*x", SAFE_FUNCS, SAFE_BUILTINS, SAFE_VARS)[0]
+    assert not validate_expr("__import__('os')", SAFE_FUNCS, SAFE_BUILTINS, SAFE_VARS)[0]
 
     g = seed_genome(random.Random(42))
     t = TaskSpec()
@@ -13091,21 +12664,6 @@ class HRMSystem:
                 print("[RSI-Persist] Final state saved on shutdown.")
 
 
-def run_hrm_life_v2():
-    """
-    Entry point for the hrm-life command.
-    Runs the HRM infinite life loop with SelfPurposeEngine integration.
-    This function creates an HRMSystem instance and runs its life loop.
-    """
-    print("=" * 60)
-    print("HRM-LIFE: Infinite Loop with Autonomous Goal Discovery")
-    print("=" * 60)
-    
-    # Use HRMSystem.run_life which has SelfPurposeEngine integrated
-    hrm = HRMSystem()
-    hrm.run_life()
-
-
 @dataclass(frozen=True)
 class BSExpr:
     pass
@@ -15865,7 +15423,7 @@ class HRMSidecar:
                     lambda_src = f"lambda {param_str}: {subtree_code}"
                     
                     # [FIX] Generate Validation IOs for this subtree
-                    func = eval(lambda_src, context)
+                    func = build_watchdog_callable_from_lambda(lambda_src, timeout=2.0)
                     subtree_validation_ios = []
                     
                     if io_examples:
@@ -16316,19 +15874,13 @@ class HRMSidecar:
 
                         # Case 1: Full Function Definition (produced by HRMSidecar.dream)
                         if code.strip().startswith("def "):
-                            exec(code, context)
-                            # Extract function name from 'def name('
-                            import re
-                            match = re.search(r"def\s+(\w+)\(", code)
-                            if match:
-                                func_name = match.group(1)
-                                func = context.get(func_name)
-                            else:
+                            func_name = extract_function_name(code)
+                            if not func_name:
                                 raise ValueError("Could not parse function name from def statement")
-                                
+                            func = build_watchdog_callable(code, func_name, timeout=2.0)
                         # Case 2: Expression (produced by raw synthesis)
                         else:
-                            func = eval(lambda_src, context)
+                            func = build_watchdog_callable_from_lambda(lambda_src, timeout=2.0)
                         
                         # Name it
                         concept_name = f"concept_{self.concept_count}"
@@ -16605,6 +16157,7 @@ class SingularityMonitor:
 
 def run_hrm_life():
     """INFINITE HRM LIFE LOOP - 4 Cognitive Capabilities + RSI"""
+    trace_exec("Systemtest.run_hrm_life")
     print("\n" + "=" * 70)
     print("  SINGULARITY LOOP - causal reasoning | physical intuition | self-state | metacognition")
     print("  Ctrl+C to stop.")
@@ -16927,7 +16480,7 @@ def orchestrator_benchmark_main(args):
     return result
 
 def orchestrator_main():
-
+    trace_exec("Systemtest.orchestrator_main")
     print("=== GRAND UNIFIED SYSTEM: 20-ROUND TEST ===")
     
     # 1. Initialize core system (seed is already set globally in main())
@@ -17091,6 +16644,7 @@ def set_seed(seed: int):
     print(f"[System] Global seed set to: {seed}")
 
 def main():
+    trace_exec("Systemtest.main")
     mp.set_start_method("spawn", force=True)
 
     # Backward compatibility: explicit --mode handling
@@ -17118,6 +16672,9 @@ def main():
 
     # 3. HRM Life
     hrm_parser = subparsers.add_parser("hrm-life", help="Run infinite HRM life loop")
+
+    # 3b. HRM Life v2 (legacy)
+    hrm_v2_parser = subparsers.add_parser("hrm-life-v2", help="Run legacy HRM life loop")
 
     # 4. Synthesis Verification
     synth_parser = subparsers.add_parser("synthesis", help="Run synthesis verification suite")
@@ -17163,6 +16720,9 @@ def main():
         orchestrator_main()
     elif args.command == "hrm-life":
         run_hrm_life()
+    elif args.command == "hrm-life-v2":
+        from systemtest.legacy.hrm_life_v2 import run_hrm_life_v2
+        run_hrm_life_v2()
     elif args.command == "synthesis":
         task_list = None
         if args.tasks:
