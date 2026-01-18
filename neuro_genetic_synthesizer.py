@@ -148,6 +148,44 @@ class SafeInterpreter(ast.NodeVisitor):
         self._check_gas()
         val = self.visit(node.value)
         idx = self.visit(node.slice)
+        return val[idx]
+
+    # [RSI-ENABLE] UNLOCK GENERIC ALGORITHMS (Recursion, HOFs via Y-Combinator)
+    # This was the missing piece preventing complex logic discovery.
+    def visit_Lambda(self, node):
+        self._check_gas()
+        # Create a closure that captures the CURRENT environment
+        closure_env = self.local_env.copy()
+        
+        def lambda_func(*args):
+            # Create new scope for execution
+            new_env = closure_env.copy()
+            # Bind arguments
+            arg_names = [arg.arg for arg in node.args.args]
+            if len(args) != len(arg_names):
+                raise TypeError(f"Lambda expected {len(arg_names)} args, got {len(args)}")
+            
+            for name, val in zip(arg_names, args):
+                new_env[name] = val
+                
+            # Recursive execution with gas check
+            # Note: We must share the GAS counter to prevent infinite loops inside lambda
+            # However, 'self' is the visitor instance. Standard 'visit' modifies self.local_env.
+            # To be safe and re-entrant, we should ideally instantiate a new visitor or 
+            # carefully manage state. For simplicity in this engine, we swap env.
+            
+            old_env = self.local_env
+            self.local_env = new_env
+            try:
+                # Body is a single expression in lambda
+                return self.visit(node.body)
+            finally:
+                self.local_env = old_env
+        
+        return lambda_func
+
+    def visit_Return(self, node):
+        return self.visit(node.value) if node.value else None
         try:
             return val[idx]
         except:
@@ -155,15 +193,27 @@ class SafeInterpreter(ast.NodeVisitor):
 
     def visit_Call(self, node):
         self._check_gas()
-        if not isinstance(node.func, ast.Name):
-            raise ValueError("Indirect calls not allowed")
+        # [RSI-ENABLE] Logic Upgrade: Support both named primitives AND calculated callables (lambdas)
+        
+        # Case 1: Direct Primitive Call (Standard)
+        if isinstance(node.func, ast.Name):
+            func_name = node.func.id
+            if func_name in self.primitives:
+                args = [self.visit(arg) for arg in node.args]
+                return self.primitives[func_name](*args)
             
-        func_name = node.func.id
-        if func_name not in self.primitives:
-             raise ValueError(f"Unknown primitive: {func_name}")
+            # If name is generic variable (e.g. 'f' in HOF), fall through to generic eval
+            
+        # Case 2: Indirect/Calculated Call (Lambda or HOF)
+        # Evaluate the function expression first (e.g., getting a lambda object)
+        func_obj = self.visit(node.func)
+        
+        if not callable(func_obj):
+             raise ValueError(f"Object is not callable: {type(func_obj)}")
              
         args = [self.visit(arg) for arg in node.args]
-        return self.primitives[func_name](*args)
+        return func_obj(*args)
+
         
     def generic_visit(self, node):
         raise ValueError(f"Illegal AST node: {type(node).__name__}")

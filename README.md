@@ -1,57 +1,32 @@
-> [!IMPORTANT]
-> **This repository is for prototype research purposes only.**
-> It is an experimental implementation of Recursive Self-Improvement (RSI) concepts and is not intended for production use.
+# Neuro-Genetic Program Synthesis with Recursive Self-Improvement (RSI)
 
-# Hybrid Program Synthesis with RSI
-
-A hybrid program synthesis engine implementing Recursive Self-Improvement (RSI) with process isolation and hierarchical abstraction.
+This repository contains an experimental implementation of a program synthesis engine capable of Recursive Self-Improvement (RSI) through neuro-genetic search and hierarchical library learning.
 
 ## Core Architecture
 
-The system is built on four safety pillars:
+The system integrates four key components to achieve safe and genuine self-improvement:
 
-### 1. Watchdog Sandbox (Process Isolation)
-Executes all generated code in a separate process/sandbox (The "Watchdog").
-- **Crash Protection**: Total isolation ensures the main system never crashes, even if the AI generates infinite loops or segmentation faults.
-- **Strict Monitoring**: Enforces hard timeouts (default 2.0s) and resource limits.
-- **Unrestricted Learning**: Allows full python `exec()` within the box, enabling the AI to learn real coding without risking the host.
-
-### RSI Features
-
-### 2. Genuine RSI (Type A: Meta-Heuristic)
-Unlike "Fake RSI" that relies on hardcoded prompts or LLM calls, this system implements **True Recursive Self-Improvement**:
-*   **Meta-Heuristic Search:** The system maintains a persistent set of feature weights (`rsi_meta_weights.json`) that evolves via reinforcement learning. It learns *how to search* effectively.
-*   **Semantic De-Bloating:** To prevent "Complexity Bloat" (a common cheat in genetic programming), the `LibraryManager` rigorously validates new concepts. Tautologies like `reverse(reverse(n))` are rejected. Only semantically novel concepts are registered.
-
-### 3. Safe Interpreter
-AST-based interpreter for DSL execution.
-- Prevents usage of `eval` or `exec` within the synthesis loop.
-- Only allows whitelisted atomic operations.
-
-### 4. Hierarchical Library (DAG)
-Manages learned concepts in a Directed Acyclic Graph.
-- **Semantic Hashing**: Prevents duplicate functionality even if code differs.
-- **Level Constraints**: Higher-level primitives can only utilize lower-level components.
-- **Utility Scoring**: Automatically prunes unused or inefficient concepts.
-
-### 5. RSI Transfer
-Automated mechanism to transfer verified improvements to the core system.
-- **Sandbox Verification**: Modifications are tested in the Watchdog sandbox first.
-- **Atomic Updates**: Source code is updated only after dual verification passes.
+1.  **Watchdog Process Isolation**: All synthesized code is executed in a detached process with strict resource limits and timeouts. This architectural decision enables the safe execution of arbitrary code, including infinite loops and complex recursion, without compromising host stability.
+2.  **Neuro-Genetic Synthesizer**: A hybrid search engine combining neural guidance with genetic algorithms. Recent updates include full support for **Lambda expressions**, **Closures**, and **Higher-Order Functions**, allowing the discovery of generic algorithms (e.g., `map`, `reduce`, `fix`) beyond simple arithmetic.
+3.  **Recursive Self-Improvement (RSI)**: The system maintains a persistent, evolving library of primitives (`rsi_primitive_registry.json`).
+    *   **Meta-Learning**: Feature weights are adjusted via reinforcement learning based on synthesis success rates.
+    *   **Semantic Abstraction**: Novel algorithms are abstracted into reusable primitives, verified for semantic uniqueness to prevent bloat.
+4.  **Safe Interpreter**: A custom AST-based validator that enforces safety constraints during the search phase while permitting necessary language features like `lambda` and `recursion` for complex logic.
 
 ## Usage
 
-Run the main life loop:
+To initiate the continuous self-improvement loop:
 
 ```bash
 python Systemtest.py hrm-life
 ```
 
-## Files
+## Repository Structure
 
-- `Systemtest.py`: Main entry point containing the inlined Safe RSI engine.
-- `watchdog_executor.py`: Standalone reference implementation of the process isolation module.
-- `rsi_primitive_registry.json`: Persisted library of learned primitives (DAG structure) and their weights.
+*   `Systemtest.py`: Primary entry point and orchestration engine.
+*   `neuro_genetic_synthesizer.py`: Core synthesis logic implementing the genetic algorithm and safe interpreter.
+*   `watchdog_executor.py`: Process isolation module for safe code execution.
+*   `rsi_primitive_registry.json`: Persistent knowledge base of discovered primitives.
 
 ## License
 
