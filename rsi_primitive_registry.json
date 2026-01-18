@@ -866,5 +866,40 @@
     "usage": 1,
     "weight": 5.0,
     "hash": "a6a9353b81e794b9d37b14dcaf4d85f620a2ddf3cd8a6ab409df3cd290e8b06e"
+  },
+  "concept_189": {
+    "code": "abs_val(sub(n, neg(n)))",
+    "level": 1,
+    "usage": 0,
+    "weight": 5.0,
+    "hash": "1f422785ea9d8dc0b492302a4af9dbe6a4644d0e53efe4b559fd6267ae7bc775"
+  },
+  "concept_190": {
+    "code": "abs_val(mul(n, mul(n, n)))",
+    "level": 1,
+    "usage": 0,
+    "weight": 5.0,
+    "hash": "a53fd83d06476ecabd6e6b0817a657671a153e73abc277df6428e853c206a71b"
+  },
+  "concept_191": {
+    "code": "abs_val(mul(n, neg(mul(n, n))))",
+    "level": 1,
+    "usage": 0,
+    "weight": 5.0,
+    "hash": "db21074ef3ab34971c5f07c5d18040dee3e4b6e013d05adc2b4079b59a83f1b8"
+  },
+  "concept_192": {
+    "code": "abs_val(mul(mul(n, n), n))",
+    "level": 1,
+    "usage": 0,
+    "weight": 5.0,
+    "hash": "f1ce4a4f5cd4c9649852fac92bc2e1fb9d203a827c26737677332b28468d28ef"
+  },
+  "concept_193": {
+    "code": "sub(mul(n, n), neg(n))",
+    "level": 1,
+    "usage": 0,
+    "weight": 5.0,
+    "hash": "c0e7d7d4365ab3e76158ae66b05326d8225517d196c0aed26474c3fcb6b8d6a5"
   }
 }
